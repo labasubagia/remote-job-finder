@@ -104,6 +104,14 @@ test("jobMatches tolerates typos, partial words and searches every field", () =>
   assert.ok(jobMatches("go", eng), "short token still matches exactly");
 });
 
+test("fuzzy matching does not invent near-misses between unrelated words", () => {
+  const saas = job("s", "SaaS Account Executive");
+  assert.ok(!jobMatches("sales", saas), "'sales' must not match 'saas'");
+  assert.ok(!jobMatches("leader", job("l", "Senior Lever Operator")), "'leader' must not match 'lever'");
+  assert.ok(!jobMatches("great", job("g", "Seat Operations")), "'great' must not match 'seat'");
+  assert.ok(jobMatches("enigneer", job("e", "Backend Engineer")), "real transposition still matches");
+});
+
 test("search never matches an inner substring of a word", () => {
   const talky = job("t", "Account Manager", [], "Managing interaction with clients.");
   assert.ok(!jobMatches("react", talky), "'react' must not match 'inte(ract)ion'");

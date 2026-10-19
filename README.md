@@ -57,4 +57,4 @@ Ranking and search scoring:
 - `.github/workflows/jobs.yml` — daily at `17 6 * * *` and on `workflow_dispatch`: tests, fetch, deploy to Pages. There is **no `push` trigger**, so shipping data requires `gh workflow run jobs.yml`.
 - `.github/workflows/ci.yml` — on every pull request: `npm ci`, `npm run fmt:check`, `npm run lint`, `npm test`.
 - `main` is protected, so changes land through pull requests only.
-- Husky hooks: `pre-commit` runs `biome check --staged --write` (fast, auto-fixes and re-stages), `pre-push` runs `npm run check`.
+- Husky hooks: `pre-commit` runs `biome check --staged` (fast, check-only: it never rewrites your index), `pre-push` runs `npm run check`.
