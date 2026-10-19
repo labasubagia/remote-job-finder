@@ -22,13 +22,24 @@
       .tags { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .4rem; }
       .tag { border: 1px solid var(--line); border-radius: 1rem; padding: .05rem .5rem; font-size: .75rem; color: var(--muted); }
       footer { margin-top: 2.5rem; color: var(--muted); font-size: .8rem; }
+      .chip { border: 1px solid var(--line); border-radius: 1rem; padding: .15rem .6rem; font: .78rem/1.4 system-ui, sans-serif; background: Canvas; color: CanvasText; cursor: pointer; }
+      .chip[aria-pressed="true"] { font-weight: 600; border-color: currentColor; }
+      .why { color: var(--muted); font-size: .8rem; margin-top: .25rem; }
       footer a { color: inherit; }
     </style>
   </head>
   <body>
     <header>
       <h1>Remote jobs</h1>
-      <input id="q" type="search" placeholder="Search title or company" autocomplete="off" />
+      <input id="p" type="search" placeholder="Your preferences — e.g. backend Go, customer support, no on-call" autocomplete="off" />
+    </header>
+    <div id="chips"></div>
+    <header>
+      <input id="q" type="search" placeholder="Filter title or company" autocomplete="off" />
+      <select id="sort">
+        <option value="best">Best match</option>
+        <option value="new">Newest</option>
+      </select>
       <select id="src"><option value="">All sources</option></select>
     </header>
     <p id="meta">Loading…</p>
@@ -41,31 +52,66 @@
       <a href="https://himalayas.app" rel="noopener">Himalayas</a> ·
       <a href="https://weworkremotely.com" rel="noopener">We Work Remotely</a>.
     </footer>
-    <script>
+    <script type="module">
+      import { PROFILE_KEY, matchedTerms, rankJobs, terms } from "./profile.mjs";
       const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
       const ago = (iso) => {
         const d = Math.max(0, (Date.now() - Date.parse(iso)) / 864e5);
         return d < 1 ? "today" : d < 2 ? "1 day ago" : `${Math.floor(d)} days ago`;
       };
+      const p = document.getElementById("p");
       const q = document.getElementById("q");
       const src = document.getElementById("src");
+      const sort = document.getElementById("sort");
+      const chips = document.getElementById("chips");
       const list = document.getElementById("list");
       const meta = document.getElementById("meta");
+      const ROLES = ["Software engineer", "Data scientist", "Product designer", "Marketing", "Customer support", "Sales", "HR / recruiter", "DevOps / SRE", "Machine learning", "Engineering manager"];
       let jobs = [];
+
+      const save = (value) => {
+        try {
+          localStorage.setItem(PROFILE_KEY, value);
+        } catch {
+          // private mode or storage disabled: the page still works, the profile just is not remembered
+        }
+      };
+
+      const picked = () =>
+        p.value
+          .split(",")
+          .map((s) => s.trim())
+          .filter(Boolean);
+
+      function syncChips() {
+        const on = new Set(picked().map((s) => s.toLowerCase()));
+        for (const b of chips.children) b.setAttribute("aria-pressed", String(on.has(b.textContent.toLowerCase())));
+      }
 
       function render() {
         const needle = q.value.trim().toLowerCase();
         const pick = src.value;
-        const shown = jobs.filter(
+        const profile = p.value.trim();
+        let shown = jobs.filter(
           (j) => (!pick || j.source === pick) && (!needle || `${j.title} ${j.company}`.toLowerCase().includes(needle)),
         );
-        meta.textContent = `${shown.length} of ${jobs.length} remote jobs · ${new Date().toLocaleDateString()}`;
+        const ranked = sort.value === "best" && Boolean(profile);
+        if (ranked) {
+          const wanted = terms(profile);
+          shown = rankJobs(shown, profile).map(({ job }) => ({ ...job, why: matchedTerms(wanted, job) }));
+        } else {
+          shown.sort((a, b) => Date.parse(b.postedAt) - Date.parse(a.postedAt));
+        }
+        meta.textContent = `${shown.length} of ${jobs.length} remote jobs · ${new Date().toLocaleDateString()}${
+          ranked ? ` · ranked for "${profile.length > 32 ? `${profile.slice(0, 32)}…` : profile}"` : ""
+        }`;
         list.innerHTML = shown.length
           ? shown
               .map(
                 (j) => `<li>
           <a href="${esc(j.url)}" target="_blank" rel="noopener">${esc(j.title)}</a>
           <div class="sub">${esc(j.company)} · ${esc(j.source)} · ${ago(j.postedAt)}</div>
+          ${j.why?.length ? `<div class="why">match: ${esc(j.why.join(" · "))}</div>` : ""}
           <div class="tags">${j.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join("")}</div>
         </li>`,
               )
@@ -84,6 +130,31 @@
           render();
         })
         .catch((err) => (meta.textContent = `Could not load jobs.json (${err.message}).`));
+      chips.innerHTML = ROLES.map((r) => `<button type="button" class="chip" aria-pressed="false">${esc(r)}</button>`).join("");
+      chips.addEventListener("click", (e) => {
+        const b = e.target.closest(".chip");
+        if (!b) return;
+        const rest = picked();
+        const i = rest.findIndex((s) => s.toLowerCase() === b.textContent.toLowerCase());
+        if (i >= 0) rest.splice(i, 1);
+        else rest.push(b.textContent);
+        p.value = rest.join(", ");
+        save(p.value);
+        syncChips();
+        render();
+      });
+      p.addEventListener("input", () => {
+        save(p.value);
+        syncChips();
+        render();
+      });
+      try {
+        p.value = localStorage.getItem(PROFILE_KEY) ?? "";
+      } catch {
+        p.value = "";
+      }
+      syncChips();
+      sort.addEventListener("change", render);
       q.addEventListener("input", render);
       src.addEventListener("change", render);
     </script>
