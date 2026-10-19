@@ -155,9 +155,11 @@
 
     const esc = (s) =>
       String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+    const RTF = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
     const ago = (iso) => {
-      const d = Math.max(0, (Date.now() - Date.parse(iso)) / 864e5);
-      return d < 1 ? "today" : d < 2 ? "1 day ago" : `${Math.floor(d)} days ago`;
+      const t = Date.parse(iso);
+      if (Number.isNaN(t)) return "unknown date";
+      return RTF.format(-Math.floor(Math.max(0, Date.now() - t) / 864e5), "day");
     };
     const p = document.getElementById("p");
     const q = document.getElementById("q");
@@ -204,25 +206,26 @@
       const pick = src.value;
       const profile = p.value.trim();
       let shown = jobs.filter((j) => (!pick || j.source === pick) && jobMatches(needle, j));
-      // A query means "find this specific job": relevance order beats profile order.
+      // A query means "find this specific job": relevance order beats profile order, unless the user asked for newest.
+      const newest = (a, b) => Date.parse(b.postedAt) - Date.parse(a.postedAt);
       const ranked = !needle && sort.value === "best" && Boolean(profile);
-      if (needle) {
-        shown.sort(
-          (a, b) => searchScore(needle, b) - searchScore(needle, a) || Date.parse(b.postedAt) - Date.parse(a.postedAt),
-        );
+      if (needle && sort.value === "new") {
+        shown.sort(newest);
+      } else if (needle) {
+        shown.sort((a, b) => searchScore(needle, b) - searchScore(needle, a) || newest(a, b));
       } else if (ranked) {
         const wanted = terms(profile);
         shown = rankJobs(shown, profile).map(({ job }) => ({ ...job, why: matchedTerms(wanted, job) }));
       } else {
-        shown.sort((a, b) => Date.parse(b.postedAt) - Date.parse(a.postedAt));
+        shown.sort(newest);
       }
-      meta.textContent = `${shown.length} of ${jobs.length} remote jobs · ${new Date().toLocaleDateString()}${
-        needle
-          ? ` · best matches for "${needle.length > 32 ? `${needle.slice(0, 32)}…` : needle}"`
-          : ranked
-            ? ` · ranked for "${profile.length > 32 ? `${profile.slice(0, 32)}…` : profile}"`
-            : ""
-      }`;
+      const clip = (s) => (s.length > 32 ? `${s.slice(0, 32)}…` : s);
+      const suffix = needle
+        ? ` · ${sort.value === "new" ? "newest" : "best"} matches for "${clip(needle)}"`
+        : ranked
+          ? ` · ranked for "${clip(profile)}"`
+          : "";
+      meta.textContent = `${shown.length} of ${jobs.length} remote jobs · ${new Date().toLocaleDateString()}${suffix}`;
       list.innerHTML = shown.length
         ? shown
             .map(

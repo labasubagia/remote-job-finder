@@ -10,15 +10,16 @@ Zero runtime dependencies. The page ships two files (`index.html`, `profile.mjs`
 
 - **Preference box + 10 role chips** — free text, e.g. `software engineer`, `data scientist`, `HR / recruiter`. The profile is remembered in `localStorage` under `rjf.profile.v1` (wrapped in try/catch, so private mode still works, it just forgets).
 - **Ranking, never hiding** — matching jobs move up; unrelated jobs stay in the list. Showing "0 of 128" for a vague phrase would be worse than showing an order.
-- **Search box** — `title`, `tags`, `company` and `excerpt` are searched, typos included (`enigneer`, `desgin`, `softw` all hit). While a query is active, results are ordered by relevance instead of recency.
-- **Sort** — `Best match` (profile order) or `Newest`; a source filter narrows to one feed.
+- **Search box** — `title`, `tags`, `company` and `excerpt` are searched, typos included (`enigneer`, `desgin`, `softw` all hit). While a query is active, results are ordered by relevance instead of recency, unless `Newest` is selected.
+- **Sort** — `Best match` (profile order) or `Newest` (recency, also applies while a query is active); a source filter narrows to one feed.
 
 ## Data
 
 `scripts/fetch-jobs.mjs` aggregates five public feeds: remoteok, remotive, arbeitnow, himalayas, wwr.
 
 - 30-day freshness window, excerpt truncated to 200 chars, at most 8 tags per job, deduplicated by id, sorted newest first.
-- 3 attempts with a 20 s timeout per request; retryable HTTP statuses (408, 425, 429, 5xx) are retried, HTML entities and CDATA are decoded.
+- 3 attempts with a 20 s timeout per request; retryable HTTP statuses (408, 425, 429, 5xx) are retried, HTML entities (named, decimal and hex) and CDATA are decoded.
+- Timestamps are accepted as epoch seconds, epoch milliseconds, ISO or RFC-822; anything unparseable or out of range becomes `null` and the row is dropped. Excerpts are cut on code-point boundaries. Jobs whose `url` is not `http(s)` are dropped, never published.
 - A source returning **zero** fresh jobs throws `FatalSourceError` and turns the Actions run red — a stale feed fails loudly instead of publishing a silently shrinking board.
 - `site/jobs.json` is generated, gitignored, and only ever deployed as a Pages artifact.
 
