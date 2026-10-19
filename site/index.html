@@ -208,7 +208,7 @@
       <a href="https://weworkremotely.com" rel="noopener">We Work Remotely</a>.
     </footer>
     <script type="module">
-    import { jobMatches, matchedTerms, PROFILE_KEY, rankJobs, searchScore, terms } from "./profile.mjs";
+    import { jobMatches, matchedTerms, PROFILE_KEY, rankJobs, searchScore, terms } from "./search.mjs";
 
     const esc = (s) =>
       String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -238,7 +238,6 @@
       "Engineering manager",
     ];
     let jobs = [];
-
     const save = (value) => {
       try {
         localStorage.setItem(PROFILE_KEY, value);
