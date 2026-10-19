@@ -15,11 +15,13 @@ function createElements() {
   const p = document.getElementById("p");
   const q = document.getElementById("q");
   const src = document.getElementById("src");
+  const geo = document.getElementById("geo");
+  const tzTolerance = document.getElementById("tzTolerance");
   const sort = document.getElementById("sort");
   const chips = document.getElementById("chips");
   const list = document.getElementById("list");
   const meta = document.getElementById("meta");
-  return { p, q, src, sort, chips, list, meta };
+  return { p, q, src, geo, tzTolerance, sort, chips, list, meta };
 }
 
 function save(value) {
@@ -42,11 +44,57 @@ function syncChips(p, chips) {
   for (const b of chips.children) b.setAttribute("aria-pressed", String(on.has(b.textContent.toLowerCase())));
 }
 // biome-ignore lint/correctness/noUnusedFunctionParameters: used via .value
-function render({ p, q, src, sort, chips, list, meta }) {
+function render({ p, q, src, geo, tzTolerance, sort, chips, list, meta }) {
   const needle = q.value.trim();
   const pick = src.value;
+  const geoPick = geo.value;
   const profile = p.value.trim();
-  let shown = jobs.filter((j) => (!pick || j.source === pick) && jobMatches(needle, j));
+
+  // Detect user's timezone offset in hours (e.g., -5 for EST, 2 for EET)
+  const userOffset = new Date().getTimezoneOffset() / -60;
+  const tolerance = geoPick === "my-tz" ? Math.max(0, Number(tzTolerance?.value ?? 2)) : 2;
+
+  // Show/hide tolerance input
+  tzTolerance.style.display = geoPick === "my-tz" ? "inline-block" : "none";
+
+  function geoMatches(job) {
+    if (!geoPick) return true;
+    if (geoPick === "worldwide")
+      return (
+        job.location?.toLowerCase().includes("worldwide") ||
+        job.location?.toLowerCase().includes("anywhere") ||
+        job.location?.toLowerCase().includes("global")
+      );
+    if (geoPick === "my-tz") {
+      if (!job.timezoneOffsets?.length) return true; // no data = don't filter out
+      return job.timezoneOffsets.some((off) => Math.abs(off - userOffset) <= tolerance);
+    }
+    // Regional filters: map region to offset ranges
+    const ranges = {
+      americas: [-10, -3],
+      emea: [-1, 4],
+      apac: [5, 12],
+    };
+    const [min, max] = ranges[geoPick] ?? [-12, 14];
+    if (job.timezoneOffsets?.length) {
+      return job.timezoneOffsets.some((off) => off >= min && off <= max);
+    }
+    // Fallback: match location string for region names
+    const loc = (job.location ?? "").toLowerCase();
+    if (geoPick === "americas")
+      return /united states|usa|canada|mexico|brazil|argentina|chile|colombia|peru|latin|america/.test(loc);
+    if (geoPick === "emea")
+      return /europe|uk|germany|france|spain|italy|netherlands|poland|sweden|norway|denmark|finland|ireland|portugal|belgium|austria|switzerland|greece|africa|middle east|uae|israel|south africa/.test(
+        loc,
+      );
+    if (geoPick === "apac")
+      return /australia|new zealand|singapore|japan|korea|china|india|hong kong|taiwan|vietnam|thailand|indonesia|philippines|malaysia|asia|pacific/.test(
+        loc,
+      );
+    return true;
+  }
+
+  let shown = jobs.filter((j) => (!pick || j.source === pick) && geoMatches(j) && jobMatches(needle, j));
   const newest = (a, b) => Date.parse(b.postedAt) - Date.parse(a.postedAt);
   const ranked = !needle && sort.value === "best" && Boolean(profile);
   if (needle && sort.value === "new") {
@@ -64,7 +112,9 @@ function render({ p, q, src, sort, chips, list, meta }) {
     ? ` · ${sort.value === "new" ? "newest" : "best"} matches for "${clip(needle)}"`
     : ranked
       ? ` · ranked for "${clip(profile)}"`
-      : "";
+      : geoPick
+        ? ` · filtered by ${geo.options[geo.selectedIndex].text}`
+        : "";
   meta.textContent = `${shown.length} of ${jobs.length} remote jobs · ${new Date().toLocaleDateString()}${suffix}`;
   list.innerHTML = shown.length
     ? shown
@@ -72,7 +122,7 @@ function render({ p, q, src, sort, chips, list, meta }) {
           (j, i) => `<li>
         <span class="num">${i + 1}</span>
         <a href="${esc(j.url)}" target="_blank" rel="noopener">${esc(j.title)}</a>
-        <div class="sub">${esc(j.company)} · ${esc(j.source)} · ${ago(j.postedAt)}</div>
+        <div class="sub">${esc(j.company)} · ${esc(j.source)} · ${ago(j.postedAt)}${j.location ? ` · ${esc(j.location)}` : ""}</div>
         ${j.why?.length ? `<div class="why">match: ${esc(j.why.join(" · "))}</div>` : ""}
         <div class="tags">${j.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join("")}</div>
       </li>`,
@@ -96,7 +146,7 @@ function debounce(fn, ms) {
 }
 
 export async function init() {
-  const { p, q, src, sort, chips, list, meta } = createElements();
+  const { p, q, src, geo, tzTolerance, sort, chips, list, meta } = createElements();
 
   initChips(chips);
 
@@ -122,7 +172,7 @@ export async function init() {
   }
   syncChips(p, chips);
 
-  const doRender = () => render({ p, q, src, sort, chips, list, meta });
+  const doRender = () => render({ p, q, src, geo, tzTolerance, sort, chips, list, meta });
   const debouncedRender = debounce(doRender, DEBOUNCE_MS);
 
   chips.addEventListener("click", (e) => {
@@ -147,6 +197,8 @@ export async function init() {
   sort.addEventListener("change", doRender);
   q.addEventListener("input", debouncedRender);
   src.addEventListener("change", doRender);
+  geo.addEventListener("change", doRender);
+  tzTolerance.addEventListener("change", doRender);
 
   doRender();
 }
