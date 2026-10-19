@@ -1,0 +1,13 @@
+{
+  "name": "remote-job-finder",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "fetch": "node scripts/fetch-jobs.mjs --out dist/jobs.json",
+    "test": "node --test 'test/**/*.test.mjs'"
+  }
+}

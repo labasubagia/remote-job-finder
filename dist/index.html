@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Remote Jobs</title>
+    <style>
+      :root { color-scheme: light dark; --line: #8884; --muted: #808080; }
+      * { box-sizing: border-box; }
+      body { margin: 0 auto; max-width: 60rem; padding: 1.5rem 1rem 4rem; font: 15px/1.5 system-ui, sans-serif; }
+      header { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; }
+      h1 { font-size: 1.35rem; margin: 0 auto 0 0; }
+      input, select { padding: .4rem .5rem; border: 1px solid var(--line); border-radius: .4rem; background: transparent; color: inherit; }
+      input { flex: 1 1 14rem; }
+      #meta { color: var(--muted); font-size: .85rem; margin: .75rem 0 1rem; }
+      ul { list-style: none; margin: 0; padding: 0; }
+      li { padding: .9rem 0; border-top: 1px solid var(--line); }
+      li a { font-weight: 600; text-decoration: none; }
+      li a:hover { text-decoration: underline; }
+      .sub { color: var(--muted); font-size: .85rem; margin-top: .2rem; }
+      .tags { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .4rem; }
+      .tag { border: 1px solid var(--line); border-radius: 1rem; padding: .05rem .5rem; font-size: .75rem; color: var(--muted); }
+      footer { margin-top: 2.5rem; color: var(--muted); font-size: .8rem; }
+      footer a { color: inherit; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Remote jobs</h1>
+      <input id="q" type="search" placeholder="Search title or company" autocomplete="off" />
+      <select id="src"><option value="">All sources</option></select>
+    </header>
+    <p id="meta">Loading…</p>
+    <ul id="list"></ul>
+    <footer>
+      Data refreshed daily. Sources:
+      <a href="https://remoteok.com" rel="noopener">Remote OK</a> ·
+      <a href="https://remotive.com" rel="noopener">Remotive</a> ·
+      <a href="https://www.arbeitnow.com" rel="noopener">Arbeitnow</a> ·
+      <a href="https://himalayas.app" rel="noopener">Himalayas</a> ·
+      <a href="https://weworkremotely.com" rel="noopener">We Work Remotely</a>.
+    </footer>
+    <script>
+      const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+      const ago = (iso) => {
+        const d = Math.max(0, (Date.now() - Date.parse(iso)) / 864e5);
+        return d < 1 ? "today" : d < 2 ? "1 day ago" : `${Math.floor(d)} days ago`;
+      };
+      const q = document.getElementById("q");
+      const src = document.getElementById("src");
+      const list = document.getElementById("list");
+      const meta = document.getElementById("meta");
+      let jobs = [];
+
+      function render() {
+        const needle = q.value.trim().toLowerCase();
+        const pick = src.value;
+        const shown = jobs.filter(
+          (j) => (!pick || j.source === pick) && (!needle || `${j.title} ${j.company}`.toLowerCase().includes(needle)),
+        );
+        meta.textContent = `${shown.length} of ${jobs.length} remote jobs · ${new Date().toLocaleDateString()}`;
+        list.innerHTML = shown.length
+          ? shown
+              .map(
+                (j) => `<li>
+          <a href="${esc(j.url)}" target="_blank" rel="noopener">${esc(j.title)}</a>
+          <div class="sub">${esc(j.company)} · ${esc(j.source)} · ${ago(j.postedAt)}</div>
+          <div class="tags">${j.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join("")}</div>
+        </li>`,
+              )
+              .join("")
+          : `<li class="sub">No matches.</li>`;
+      }
+
+      fetch("./jobs.json")
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+        .then((data) => {
+          jobs = Array.isArray(data) ? data : [];
+          for (const s of [...new Set(jobs.map((j) => j.source))].sort()) {
+            src.insertAdjacentHTML("beforeend", `<option value="${esc(s)}">${esc(s)} (${jobs.filter((j) => j.source === s).length})</option>`);
+          }
+          if (!jobs.length) meta.textContent = "No jobs published yet — run npm run fetch.";
+          render();
+        })
+        .catch((err) => (meta.textContent = `Could not load jobs.json (${err.message}).`));
+      q.addEventListener("input", render);
+      src.addEventListener("change", render);
+    </script>
+  </body>
+</html>
