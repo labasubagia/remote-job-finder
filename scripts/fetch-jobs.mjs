@@ -45,6 +45,10 @@ export async function fetchText(source, url, { fetchImpl = fetch, attempts = ATT
   }
 }
 
+/** Decode one numeric character reference; invalid code points become U+FFFD. */
+const codePoint = (n) =>
+  Number.isInteger(n) && n > 0 && n <= 0x10ffff && !(n >= 0xd800 && n <= 0xdfff) ? String.fromCodePoint(n) : "\uFFFD";
+
 const decode = (s) =>
   s
     .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
@@ -52,8 +56,10 @@ const decode = (s) =>
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
     .replace(/&apos;/g, "'")
-    .replace(/&#39;/g, "'")
     .replace(/&nbsp;/g, " ")
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex) => codePoint(Number.parseInt(hex, 16)))
+    .replace(/&#(\d+);/g, (_, dec) => codePoint(Number(dec)))
+    // last, so "&amp;lt;" decodes to "&lt;" and never twice
     .replace(/&amp;/g, "&");
 
 const stripHtml = (s = "") =>
@@ -63,19 +69,31 @@ const stripHtml = (s = "") =>
 
 const excerpt = (s) => {
   const t = stripHtml(s);
-  return t.length > MAX_EXCERPT ? `${t.slice(0, MAX_EXCERPT - 1).trimEnd()}…` : t;
+  if (t.length <= MAX_EXCERPT) return t;
+  let cut = t.slice(0, MAX_EXCERPT - 1);
+  // a cut between the two halves of a surrogate pair would render as U+FFFD
+  if (/[\uD800-\uDBFF]$/.test(cut)) cut = cut.slice(0, -1);
+  return `${cut.trimEnd()}…`;
 };
 
-/** epoch seconds | ISO | RFC-822 -> ISO string, or null when unparseable. */
+/** epoch seconds | epoch millis | ISO | RFC-822 -> ISO string, or null when unparseable or out of range. */
 const iso = (v) => {
   if (v == null || v === "") return null;
   let s = String(v).trim();
-  if (/^\d+$/.test(s)) return new Date(Number(s) * 1000).toISOString();
+  if (/^\d+$/.test(s)) {
+    const n = Number(s);
+    // 1e11 seconds is year 5138; real millisecond epochs are ~1e12, so anything that large is millis.
+    const d = new Date(n >= 1e11 ? n : n * 1000);
+    return Number.isNaN(d.getTime()) ? null : d.toISOString();
+  }
   // ponytail: sources that omit a timezone are treated as UTC; revisit if a source proves otherwise
   if (/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(:\d{2})?$/.test(s)) s = `${s.replace(" ", "T")}Z`;
   const t = Date.parse(s);
   return Number.isNaN(t) ? null : new Date(t).toISOString();
 };
+
+/** Only http(s) links are rendered as anchors, so anything else is dropped before publishing. */
+const isHttpUrl = (v) => /^https?:\/\/\S+$/i.test(String(v ?? "").trim());
 
 const tags = (v) =>
   (Array.isArray(v) ? v : v ? [v] : [])
@@ -197,7 +215,11 @@ export async function collectJobs({
   const collected = [];
   for (const [name, source] of Object.entries(SOURCES)) {
     const parsed = source.parse(await fetchText(name, source.url, { fetchImpl }));
-    const fresh = parsed.filter((j) => j.postedAt && Date.parse(j.postedAt) >= cutoff);
+    const linked = parsed.filter((j) => isHttpUrl(j.url));
+    if (linked.length < parsed.length) {
+      log(`${name}: dropped ${parsed.length - linked.length} job(s) with a non-http url`);
+    }
+    const fresh = linked.filter((j) => j.postedAt && Date.parse(j.postedAt) >= cutoff);
     if (fresh.length === 0) {
       throw fail(name, `0 of ${parsed.length} jobs newer than ${maxAgeDays}d — check the source before publishing`);
     }

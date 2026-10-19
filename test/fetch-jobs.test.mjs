@@ -183,3 +183,80 @@ test("a source with nothing fresh fails the run rather than shipping stale rows"
     }));
   await assert.rejects(() => collectJobs({ fetchImpl: stale }), /remotive: 0 of 2 jobs/);
 });
+
+test("decodes numeric and hex character references without double-decoding", () => {
+  const [job] = SOURCES.remoteok.parse(
+    JSON.stringify([
+      { legal: "x" },
+      {
+        id: 3,
+        position: "Café",
+        company: "Ampersand & Co",
+        url: "https://remoteok.com/j/3",
+        date: recent(1),
+        description: "<p>caf&#233; &#x2014; R&amp;D &amp;lt;not a tag&amp;gt; &#xD800;</p>",
+      },
+    ]),
+  );
+  assert.equal(
+    job.excerpt,
+    "café — R&D &lt;not a tag&gt; \uFFFD",
+    "entities decode once and a lone surrogate becomes U+FFFD",
+  );
+});
+
+test("accepts millisecond epochs and rejects timestamps it cannot represent", () => {
+  const parse = (date) =>
+    SOURCES.remoteok.parse(
+      JSON.stringify([{ legal: "x" }, { id: 4, position: "Milli", url: "https://remoteok.com/j/4", date }]),
+    )[0].postedAt;
+  assert.equal(parse(String(1_700_000_000_000)), "2023-11-14T22:13:20.000Z");
+  assert.equal(parse("1700000000"), "2023-11-14T22:13:20.000Z");
+  assert.equal(parse("999999999999999999999"), null, "out of range is null, not a RangeError");
+  assert.equal(parse("170000000000000000000000"), null);
+});
+
+test("an excerpt never ends inside a surrogate pair", () => {
+  const [job] = SOURCES.remoteok.parse(
+    JSON.stringify([
+      { legal: "x" },
+      {
+        id: 5,
+        position: "Emoji",
+        url: "https://remoteok.com/j/5",
+        date: recent(1),
+        description: `${"a".repeat(198)}😀tail`,
+      },
+    ]),
+  );
+  assert.ok(job.excerpt.length <= 200, "still truncated");
+  assert.ok(!/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(job.excerpt), "no lone high surrogate");
+  assert.ok(!/[\uDC00-\uDFFF]/.test(job.excerpt), "no lone low surrogate");
+  assert.ok(job.excerpt.endsWith("…"));
+});
+
+test("jobs whose url is not http(s) are dropped instead of becoming javascript: links", async () => {
+  const logs = [];
+  const hostile = (url) =>
+    okFetch(url).then((r) => ({
+      ...r,
+      text: () =>
+        r.text().then((t) =>
+          url.includes("remoteok")
+            ? // append one fresh row carrying a hostile scheme; the legit rows stay
+              t.replace(
+                /\]$/,
+                `,{"id":99,"position":"Hostile","url":"javascript:alert(document.cookie)","date":"${recent(1)}"}]`,
+              )
+            : t,
+        ),
+    }));
+  const jobs = await collectJobs({ fetchImpl: hostile, log: (m) => logs.push(m) });
+  assert.ok(!jobs.some((j) => j.url.startsWith("javascript:")), "no javascript: url published");
+  assert.ok(jobs.every((j) => /^https?:\/\//.test(j.url)));
+  assert.equal(jobs.length, 6, "the hostile row is gone, the legit rows remain");
+  assert.ok(
+    logs.some((m) => m.includes("non-http url")),
+    "dropping is logged",
+  );
+});
