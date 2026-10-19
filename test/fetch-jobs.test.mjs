@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { FatalSourceError, SOURCES, collectJobs, fetchText } from "../scripts/fetch-jobs.mjs";
+import { collectJobs, FatalSourceError, fetchText, SOURCES } from "../scripts/fetch-jobs.mjs";
 
 const day = 86_400_000;
 const recent = (daysAgo) => new Date(Date.now() - daysAgo * day).toISOString();
@@ -8,25 +8,79 @@ const recent = (daysAgo) => new Date(Date.now() - daysAgo * day).toISOString();
 const body = {
   remoteok: JSON.stringify([
     { legal: "API Terms of Service: please link back" },
-    { id: 1, position: "Backend Engineer", company: "Acme", url: "https://remoteok.com/j/1", date: recent(1), tags: ["node"], description: "<p>Remote " + "x".repeat(400) + "</p>" },
-    { id: 2, position: "Stale Role", company: "Old", url: "https://remoteok.com/j/2", date: recent(90), tags: [], description: "" },
+    {
+      id: 1,
+      position: "Backend Engineer",
+      company: "Acme",
+      url: "https://remoteok.com/j/1",
+      date: recent(1),
+      tags: ["node"],
+      description: `<p>Remote ${"x".repeat(400)}</p>`,
+    },
+    {
+      id: 2,
+      position: "Stale Role",
+      company: "Old",
+      url: "https://remoteok.com/j/2",
+      date: recent(90),
+      tags: [],
+      description: "",
+    },
   ]),
   remotive: JSON.stringify({
     "job-count": 2,
     jobs: [
-      { id: 7, title: "React Dev", company_name: "Beta", url: "https://remotive.com/j/7", publication_date: recent(2).slice(0, 19), tags: ["react"] },
-      { id: 8, title: "QA", company_name: "Beta", url: "https://remotive.com/j/8", publication_date: recent(3), tags: [] },
+      {
+        id: 7,
+        title: "React Dev",
+        company_name: "Beta",
+        url: "https://remotive.com/j/7",
+        publication_date: recent(2).slice(0, 19),
+        tags: ["react"],
+      },
+      {
+        id: 8,
+        title: "QA",
+        company_name: "Beta",
+        url: "https://remotive.com/j/8",
+        publication_date: recent(3),
+        tags: [],
+      },
     ],
   }),
   arbeitnow: JSON.stringify({
     data: [
-      { slug: "remote-sre", title: "SRE", company_name: "Gamma", url: "https://arbeitnow.com/j/remote-sre", remote: true, created_at: String(Math.floor(Date.now() / 1000)), tags: ["sre"] },
-      { slug: "onsite-pm", title: "Onsite PM", company_name: "Gamma", url: "https://arbeitnow.com/j/onsite-pm", remote: false, created_at: String(Math.floor(Date.now() / 1000)), tags: [] },
+      {
+        slug: "remote-sre",
+        title: "SRE",
+        company_name: "Gamma",
+        url: "https://arbeitnow.com/j/remote-sre",
+        remote: true,
+        created_at: String(Math.floor(Date.now() / 1000)),
+        tags: ["sre"],
+      },
+      {
+        slug: "onsite-pm",
+        title: "Onsite PM",
+        company_name: "Gamma",
+        url: "https://arbeitnow.com/j/onsite-pm",
+        remote: false,
+        created_at: String(Math.floor(Date.now() / 1000)),
+        tags: [],
+      },
     ],
   }),
   himalayas: JSON.stringify({
     jobs: [
-      { title: "Platform Lead", companyName: "Delta", guid: "https://himalayas.app/companies/delta/jobs/platform-lead", applicationLink: "https://himalayas.app/jobs/platform-lead", pubDate: recent(4), categories: ["Engineering"], excerpt: "Remote-first team" },
+      {
+        title: "Platform Lead",
+        companyName: "Delta",
+        guid: "https://himalayas.app/companies/delta/jobs/platform-lead",
+        applicationLink: "https://himalayas.app/jobs/platform-lead",
+        pubDate: recent(4),
+        categories: ["Engineering"],
+        excerpt: "Remote-first team",
+      },
     ],
   }),
   wwr: `<?xml version="1.0"?><rss><channel>
@@ -50,7 +104,13 @@ test("collects fresh remote jobs from every source, normalised and deduped", asy
   const jobs = await collectJobs({ fetchImpl: okFetch, log: (m) => logs.push(m) });
 
   assert.equal(logs.length, 5, "logs one line per source");
-  assert.deepEqual([...new Set(jobs.map((j) => j.source))].sort(), ["arbeitnow", "himalayas", "remoteok", "remotive", "wwr"]);
+  assert.deepEqual([...new Set(jobs.map((j) => j.source))].sort(), [
+    "arbeitnow",
+    "himalayas",
+    "remoteok",
+    "remotive",
+    "wwr",
+  ]);
   assert.equal(jobs.length, 6, "stale remoteok job and onsite arbeitnow job dropped");
   assert.equal(new Set(jobs.map((j) => j.id)).size, jobs.length, "ids unique");
 
@@ -100,7 +160,11 @@ test("network errors are retried and then surface as fatal", async () => {
 });
 
 test("schema change fails loudly instead of publishing a half-empty file", async () => {
-  const broken = (url) => okFetch(url).then((r) => ({ ...r, text: () => Promise.resolve(url.includes("himalayas") ? '{"jobs":{}}' : r.text()) }));
+  const broken = (url) =>
+    okFetch(url).then((r) => ({
+      ...r,
+      text: () => Promise.resolve(url.includes("himalayas") ? '{"jobs":{}}' : r.text()),
+    }));
   await assert.rejects(() => collectJobs({ fetchImpl: broken }), /himalayas/);
 });
 
@@ -109,11 +173,13 @@ test("a source with nothing fresh fails the run rather than shipping stale rows"
     okFetch(url).then((r) => ({
       ...r,
       text: () =>
-        r.text().then((t) =>
-          url.includes("remotive")
-            ? t.replace(/"publication_date":"[^"]+"/g, `"publication_date":"${recent(120)}"`)
-            : t,
-        ),
+        r
+          .text()
+          .then((t) =>
+            url.includes("remotive")
+              ? t.replace(/"publication_date":"[^"]+"/g, `"publication_date":"${recent(120)}"`)
+              : t,
+          ),
     }));
   await assert.rejects(() => collectJobs({ fetchImpl: stale }), /remotive: 0 of 2 jobs/);
 });

@@ -57,7 +57,9 @@ const decode = (s) =>
     .replace(/&amp;/g, "&");
 
 const stripHtml = (s = "") =>
-  decode(String(s).replace(/<[^>]*>/g, " ")).replace(/\s+/g, " ").trim();
+  decode(String(s).replace(/<[^>]*>/g, " "))
+    .replace(/\s+/g, " ")
+    .trim();
 
 const excerpt = (s) => {
   const t = stripHtml(s);
@@ -89,7 +91,7 @@ export const SOURCES = {
       if (!Array.isArray(data)) throw fail("remoteok", "expected a JSON array (schema changed?)");
       // data[0] is the legal notice, not a job
       return data
-        .filter((j) => j && j.id && j.position)
+        .filter((j) => j?.id && j.position)
         .map((j) => ({
           id: `remoteok-${j.id}`,
           title: j.position,

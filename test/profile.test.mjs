@@ -53,7 +53,10 @@ test("rankJobs puts profile matches first and breaks ties by recency", () => {
     ["be", "fe", "hr"],
   );
 
-  const equal = [job("old", "Data Scientist", ["data"], "", "2026-01-01T00:00:00Z"), job("new", "Data Scientist", ["data"], "", "2026-10-01T00:00:00Z")];
+  const equal = [
+    job("old", "Data Scientist", ["data"], "", "2026-01-01T00:00:00Z"),
+    job("new", "Data Scientist", ["data"], "", "2026-10-01T00:00:00Z"),
+  ];
   assert.deepEqual(
     rankJobs(equal, "data").map((r) => r.job.id),
     ["new", "old"],
@@ -61,7 +64,10 @@ test("rankJobs puts profile matches first and breaks ties by recency", () => {
 });
 
 test("rankJobs with no profile is pure recency and never reorders the input array", () => {
-  const jobs = [job("a", "Anything", [], "", "2026-01-01T00:00:00Z"), job("b", "Anything", [], "", "2026-09-01T00:00:00Z")];
+  const jobs = [
+    job("a", "Anything", [], "", "2026-01-01T00:00:00Z"),
+    job("b", "Anything", [], "", "2026-09-01T00:00:00Z"),
+  ];
   const before = jobs.map((j) => j.id);
   assert.deepEqual(
     rankJobs(jobs, "").map((r) => r.job.id),

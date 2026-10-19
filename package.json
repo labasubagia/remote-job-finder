@@ -8,6 +8,15 @@
   },
   "scripts": {
     "fetch": "node scripts/fetch-jobs.mjs --out site/jobs.json",
-    "test": "node --test 'test/**/*.test.mjs'"
+    "fmt": "biome format --write .",
+    "fmt:check": "biome format .",
+    "lint": "biome lint .",
+    "test": "node --test 'test/**/*.test.mjs'",
+    "check": "biome check . && npm test",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.15",
+    "husky": "^9.1.7"
   }
 }

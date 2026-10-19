@@ -39,10 +39,12 @@ const canon = (w) => CANON.get(w) ?? w;
 
 // Words that carry no signal in either a profile or a job text.
 const STOP = new Set(
-  ("the and for with that this from are was were you your not but all any can will would have has had one two three new per via etc plus " +
+  (
+    "the and for with that this from are was were you your not but all any can will would have has had one two three new per via etc plus " +
     "work working works job jobs remote role roles position positions looking want need like love hate am i we us it by of to in on at as is be no so do " +
     "about into over out up our their his her its who what when where why how team teams company companies time full part experienced experience " +
-    "ii iii iv senior junior staff principal lead leading").split(" "),
+    "ii iii iv senior junior staff principal lead leading"
+  ).split(" "),
 );
 
 export function terms(text) {
@@ -70,15 +72,17 @@ const FIELDS = [
 const sets = new WeakMap();
 const fieldSets = (job) => {
   let s = sets.get(job);
-  if (!s) sets.set(job, (s = FIELDS.map(([w, get]) => [w, terms(get(job))])));
+  if (!s) {
+    s = FIELDS.map(([w, get]) => [w, terms(get(job))]);
+    sets.set(job, s);
+  }
   return s;
 };
 
 export function scoreJob(profileTerms, job) {
   if (!profileTerms.size) return 0;
   let score = 0;
-  for (const [weight, set] of fieldSets(job))
-    for (const t of profileTerms) if (set.has(t)) score += weight;
+  for (const [weight, set] of fieldSets(job)) for (const t of profileTerms) if (set.has(t)) score += weight;
   return score / profileTerms.size;
 }
 
@@ -125,7 +129,10 @@ const SEARCH_FIELDS = [
 const searchSets = new WeakMap();
 const searchFields = (job) => {
   let s = searchSets.get(job);
-  if (!s) searchSets.set(job, (s = SEARCH_FIELDS.map(([weight, get]) => [weight, words(get(job))])));
+  if (!s) {
+    s = SEARCH_FIELDS.map(([weight, get]) => [weight, words(get(job))]);
+    searchSets.set(job, s);
+  }
   return s;
 };
 

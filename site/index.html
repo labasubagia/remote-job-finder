@@ -1,163 +1,285 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Remote Jobs</title>
     <style>
-      :root { color-scheme: light dark; --line: #8884; --muted: #808080; }
-      * { box-sizing: border-box; }
-      body { margin: 0 auto; max-width: 60rem; padding: 1.5rem 1rem 4rem; font: 15px/1.5 system-ui, sans-serif; }
-      header { display: flex; flex-wrap: wrap; gap: .75rem; align-items: center; }
-      h1 { font-size: 1.35rem; margin: 0 auto 0 0; }
-      input, select { padding: .4rem .5rem; border: 1px solid var(--line); border-radius: .4rem; background: Canvas; color: CanvasText; }
-      select option { background: Canvas; color: CanvasText; }
-      input { flex: 1 1 14rem; }
-      #meta { color: var(--muted); font-size: .85rem; margin: .75rem 0 1rem; }
-      ul { list-style: none; margin: 0; padding: 0; }
-      li { padding: .9rem 0; border-top: 1px solid var(--line); }
-      li a { font-weight: 600; text-decoration: none; }
-      li a:hover { text-decoration: underline; }
-      .sub { color: var(--muted); font-size: .85rem; margin-top: .2rem; }
-      .tags { display: flex; flex-wrap: wrap; gap: .35rem; margin-top: .4rem; }
-      .tag { border: 1px solid var(--line); border-radius: 1rem; padding: .05rem .5rem; font-size: .75rem; color: var(--muted); }
-      footer { margin-top: 2.5rem; color: var(--muted); font-size: .8rem; }
-      .chip { border: 1px solid var(--line); border-radius: 1rem; padding: .15rem .6rem; font: .78rem/1.4 system-ui, sans-serif; background: Canvas; color: CanvasText; cursor: pointer; }
-      .chip[aria-pressed="true"] { font-weight: 600; border-color: currentColor; }
-      .why { color: var(--muted); font-size: .8rem; margin-top: .25rem; }
-      footer a { color: inherit; }
+    :root {
+      color-scheme: light dark;
+      --line: #8884;
+      --muted: #808080;
+    }
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 60rem;
+      padding: 1.5rem 1rem 4rem;
+      font:
+        15px / 1.5 system-ui,
+        sans-serif;
+    }
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      align-items: center;
+    }
+    h1 {
+      font-size: 1.35rem;
+      margin: 0 auto 0 0;
+    }
+    input,
+    select {
+      padding: 0.4rem 0.5rem;
+      border: 1px solid var(--line);
+      border-radius: 0.4rem;
+      background: Canvas;
+      color: CanvasText;
+    }
+    select option {
+      background: Canvas;
+      color: CanvasText;
+    }
+    input {
+      flex: 1 1 14rem;
+    }
+    #meta {
+      color: var(--muted);
+      font-size: 0.85rem;
+      margin: 0.75rem 0 1rem;
+    }
+    ul {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+    }
+    li {
+      padding: 0.9rem 0;
+      border-top: 1px solid var(--line);
+    }
+    li a {
+      font-weight: 600;
+      text-decoration: none;
+    }
+    li a:hover {
+      text-decoration: underline;
+    }
+    .sub {
+      color: var(--muted);
+      font-size: 0.85rem;
+      margin-top: 0.2rem;
+    }
+    .tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.35rem;
+      margin-top: 0.4rem;
+    }
+    .tag {
+      border: 1px solid var(--line);
+      border-radius: 1rem;
+      padding: 0.05rem 0.5rem;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+    footer {
+      margin-top: 2.5rem;
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+    .chip {
+      border: 1px solid var(--line);
+      border-radius: 1rem;
+      padding: 0.15rem 0.6rem;
+      font:
+        0.78rem / 1.4 system-ui,
+        sans-serif;
+      background: Canvas;
+      color: CanvasText;
+      cursor: pointer;
+    }
+    .chip[aria-pressed="true"] {
+      font-weight: 600;
+      border-color: currentColor;
+    }
+    .why {
+      color: var(--muted);
+      font-size: 0.8rem;
+      margin-top: 0.25rem;
+    }
+    footer a {
+      color: inherit;
+    }
     </style>
   </head>
   <body>
     <header>
       <h1>Remote jobs</h1>
-      <input id="p" type="search" placeholder="Your preferences — e.g. backend Go, customer support, no on-call" autocomplete="off" />
+      <input
+        id="p"
+        type="search"
+        placeholder="Your preferences — e.g. backend Go, customer support, no on-call"
+        autocomplete="off"
+      >
     </header>
     <div id="chips"></div>
     <header>
-      <input id="q" type="search" placeholder="Search title, company, tags, description" autocomplete="off" />
+      <input id="q" type="search" placeholder="Search title, company, tags, description" autocomplete="off">
       <select id="sort">
         <option value="best">Best match</option>
         <option value="new">Newest</option>
       </select>
-      <select id="src"><option value="">All sources</option></select>
+      <select id="src">
+        <option value="">All sources</option>
+      </select>
     </header>
     <p id="meta">Loading…</p>
     <ul id="list"></ul>
     <footer>
       Data refreshed daily. Sources:
-      <a href="https://remoteok.com" rel="noopener">Remote OK</a> ·
-      <a href="https://remotive.com" rel="noopener">Remotive</a> ·
-      <a href="https://www.arbeitnow.com" rel="noopener">Arbeitnow</a> ·
-      <a href="https://himalayas.app" rel="noopener">Himalayas</a> ·
+      <a href="https://remoteok.com" rel="noopener">Remote OK</a>
+      ·
+      <a href="https://remotive.com" rel="noopener">Remotive</a>
+      ·
+      <a href="https://www.arbeitnow.com" rel="noopener">Arbeitnow</a>
+      ·
+      <a href="https://himalayas.app" rel="noopener">Himalayas</a>
+      ·
       <a href="https://weworkremotely.com" rel="noopener">We Work Remotely</a>.
     </footer>
     <script type="module">
-      import { PROFILE_KEY, jobMatches, matchedTerms, rankJobs, searchScore, terms } from "./profile.mjs";
-      const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
-      const ago = (iso) => {
-        const d = Math.max(0, (Date.now() - Date.parse(iso)) / 864e5);
-        return d < 1 ? "today" : d < 2 ? "1 day ago" : `${Math.floor(d)} days ago`;
-      };
-      const p = document.getElementById("p");
-      const q = document.getElementById("q");
-      const src = document.getElementById("src");
-      const sort = document.getElementById("sort");
-      const chips = document.getElementById("chips");
-      const list = document.getElementById("list");
-      const meta = document.getElementById("meta");
-      const ROLES = ["Software engineer", "Data scientist", "Product designer", "Marketing", "Customer support", "Sales", "HR / recruiter", "DevOps / SRE", "Machine learning", "Engineering manager"];
-      let jobs = [];
+    import { jobMatches, matchedTerms, PROFILE_KEY, rankJobs, searchScore, terms } from "./profile.mjs";
 
-      const save = (value) => {
-        try {
-          localStorage.setItem(PROFILE_KEY, value);
-        } catch {
-          // private mode or storage disabled: the page still works, the profile just is not remembered
-        }
-      };
+    const esc = (s) =>
+      String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+    const ago = (iso) => {
+      const d = Math.max(0, (Date.now() - Date.parse(iso)) / 864e5);
+      return d < 1 ? "today" : d < 2 ? "1 day ago" : `${Math.floor(d)} days ago`;
+    };
+    const p = document.getElementById("p");
+    const q = document.getElementById("q");
+    const src = document.getElementById("src");
+    const sort = document.getElementById("sort");
+    const chips = document.getElementById("chips");
+    const list = document.getElementById("list");
+    const meta = document.getElementById("meta");
+    const ROLES = [
+      "Software engineer",
+      "Data scientist",
+      "Product designer",
+      "Marketing",
+      "Customer support",
+      "Sales",
+      "HR / recruiter",
+      "DevOps / SRE",
+      "Machine learning",
+      "Engineering manager",
+    ];
+    let jobs = [];
 
-      const picked = () =>
-        p.value
-          .split(",")
-          .map((s) => s.trim())
-          .filter(Boolean);
-
-      function syncChips() {
-        const on = new Set(picked().map((s) => s.toLowerCase()));
-        for (const b of chips.children) b.setAttribute("aria-pressed", String(on.has(b.textContent.toLowerCase())));
+    const save = (value) => {
+      try {
+        localStorage.setItem(PROFILE_KEY, value);
+      } catch {
+        // private mode or storage disabled: the page still works, the profile just is not remembered
       }
+    };
 
-      function render() {
-        const needle = q.value.trim();
-        const pick = src.value;
-        const profile = p.value.trim();
-        let shown = jobs.filter((j) => (!pick || j.source === pick) && jobMatches(needle, j));
-        // A query means "find this specific job": relevance order beats profile order.
-        const ranked = !needle && sort.value === "best" && Boolean(profile);
-        if (needle) {
-          shown.sort((a, b) => searchScore(needle, b) - searchScore(needle, a) || Date.parse(b.postedAt) - Date.parse(a.postedAt));
-        } else if (ranked) {
-          const wanted = terms(profile);
-          shown = rankJobs(shown, profile).map(({ job }) => ({ ...job, why: matchedTerms(wanted, job) }));
-        } else {
-          shown.sort((a, b) => Date.parse(b.postedAt) - Date.parse(a.postedAt));
-        }
-        meta.textContent = `${shown.length} of ${jobs.length} remote jobs · ${new Date().toLocaleDateString()}${
-          needle ? ` · best matches for "${needle.length > 32 ? `${needle.slice(0, 32)}…` : needle}"` : ranked ? ` · ranked for "${profile.length > 32 ? `${profile.slice(0, 32)}…` : profile}"` : ""
-        }`;
-        list.innerHTML = shown.length
-          ? shown
-              .map(
-                (j) => `<li>
+    const picked = () =>
+      p.value
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+    function syncChips() {
+      const on = new Set(picked().map((s) => s.toLowerCase()));
+      for (const b of chips.children) b.setAttribute("aria-pressed", String(on.has(b.textContent.toLowerCase())));
+    }
+
+    function render() {
+      const needle = q.value.trim();
+      const pick = src.value;
+      const profile = p.value.trim();
+      let shown = jobs.filter((j) => (!pick || j.source === pick) && jobMatches(needle, j));
+      // A query means "find this specific job": relevance order beats profile order.
+      const ranked = !needle && sort.value === "best" && Boolean(profile);
+      if (needle) {
+        shown.sort(
+          (a, b) => searchScore(needle, b) - searchScore(needle, a) || Date.parse(b.postedAt) - Date.parse(a.postedAt),
+        );
+      } else if (ranked) {
+        const wanted = terms(profile);
+        shown = rankJobs(shown, profile).map(({ job }) => ({ ...job, why: matchedTerms(wanted, job) }));
+      } else {
+        shown.sort((a, b) => Date.parse(b.postedAt) - Date.parse(a.postedAt));
+      }
+      meta.textContent = `${shown.length} of ${jobs.length} remote jobs · ${new Date().toLocaleDateString()}${
+        needle
+          ? ` · best matches for "${needle.length > 32 ? `${needle.slice(0, 32)}…` : needle}"`
+          : ranked
+            ? ` · ranked for "${profile.length > 32 ? `${profile.slice(0, 32)}…` : profile}"`
+            : ""
+      }`;
+      list.innerHTML = shown.length
+        ? shown
+            .map(
+              (j) => `<li>
           <a href="${esc(j.url)}" target="_blank" rel="noopener">${esc(j.title)}</a>
           <div class="sub">${esc(j.company)} · ${esc(j.source)} · ${ago(j.postedAt)}</div>
           ${j.why?.length ? `<div class="why">match: ${esc(j.why.join(" · "))}</div>` : ""}
           <div class="tags">${j.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join("")}</div>
         </li>`,
-              )
-              .join("")
-          : `<li class="sub">No matches.</li>`;
-      }
+            )
+            .join("")
+        : `<li class="sub">No matches.</li>`;
+    }
 
-      fetch("./jobs.json")
-        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-        .then((data) => {
-          jobs = Array.isArray(data) ? data : [];
-          for (const s of [...new Set(jobs.map((j) => j.source))].sort()) {
-            src.insertAdjacentHTML("beforeend", `<option value="${esc(s)}">${esc(s)} (${jobs.filter((j) => j.source === s).length})</option>`);
-          }
-          if (!jobs.length) meta.textContent = "No jobs published yet — run npm run fetch.";
-          render();
-        })
-        .catch((err) => (meta.textContent = `Could not load jobs.json (${err.message}).`));
-      chips.innerHTML = ROLES.map((r) => `<button type="button" class="chip" aria-pressed="false">${esc(r)}</button>`).join("");
-      chips.addEventListener("click", (e) => {
-        const b = e.target.closest(".chip");
-        if (!b) return;
-        const rest = picked();
-        const i = rest.findIndex((s) => s.toLowerCase() === b.textContent.toLowerCase());
-        if (i >= 0) rest.splice(i, 1);
-        else rest.push(b.textContent);
-        p.value = rest.join(", ");
-        save(p.value);
-        syncChips();
+    fetch("./jobs.json")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((data) => {
+        jobs = Array.isArray(data) ? data : [];
+        for (const s of [...new Set(jobs.map((j) => j.source))].sort()) {
+          src.insertAdjacentHTML(
+            "beforeend",
+            `<option value="${esc(s)}">${esc(s)} (${jobs.filter((j) => j.source === s).length})</option>`,
+          );
+        }
+        if (!jobs.length) meta.textContent = "No jobs published yet — run npm run fetch.";
         render();
-      });
-      p.addEventListener("input", () => {
-        save(p.value);
-        syncChips();
-        render();
-      });
-      try {
-        p.value = localStorage.getItem(PROFILE_KEY) ?? "";
-      } catch {
-        p.value = "";
-      }
+      })
+      .catch((err) => (meta.textContent = `Could not load jobs.json (${err.message}).`));
+    chips.innerHTML = ROLES.map(
+      (r) => `<button type="button" class="chip" aria-pressed="false">${esc(r)}</button>`,
+    ).join("");
+    chips.addEventListener("click", (e) => {
+      const b = e.target.closest(".chip");
+      if (!b) return;
+      const rest = picked();
+      const i = rest.findIndex((s) => s.toLowerCase() === b.textContent.toLowerCase());
+      if (i >= 0) rest.splice(i, 1);
+      else rest.push(b.textContent);
+      p.value = rest.join(", ");
+      save(p.value);
       syncChips();
-      sort.addEventListener("change", render);
-      q.addEventListener("input", render);
-      src.addEventListener("change", render);
+      render();
+    });
+    p.addEventListener("input", () => {
+      save(p.value);
+      syncChips();
+      render();
+    });
+    try {
+      p.value = localStorage.getItem(PROFILE_KEY) ?? "";
+    } catch {
+      p.value = "";
+    }
+    syncChips();
+    sort.addEventListener("change", render);
+    q.addEventListener("input", render);
+    src.addEventListener("change", render);
     </script>
   </body>
 </html>
