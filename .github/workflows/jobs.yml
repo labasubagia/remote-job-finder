@@ -25,11 +25,11 @@ jobs:
       - name: Test pipeline
         run: npm test
       - name: Fetch jobs
-        run: node scripts/fetch-jobs.mjs --out dist/jobs.json
+        run: node scripts/fetch-jobs.mjs --out site/jobs.json
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: site
 
   deploy:
     needs: build

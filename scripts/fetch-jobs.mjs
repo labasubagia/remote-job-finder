@@ -208,7 +208,7 @@ export async function collectJobs({
 
 async function main(argv) {
   const at = argv.indexOf("--out");
-  const out = resolve(at === -1 ? "dist/jobs.json" : argv[at + 1]);
+  const out = resolve(at === -1 ? "site/jobs.json" : argv[at + 1]);
   const jobs = await collectJobs({ log: (m) => console.error(m) });
   await mkdir(dirname(out), { recursive: true });
   await writeFile(out, JSON.stringify(jobs));

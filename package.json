@@ -7,7 +7,7 @@
     "node": ">=22"
   },
   "scripts": {
-    "fetch": "node scripts/fetch-jobs.mjs --out dist/jobs.json",
+    "fetch": "node scripts/fetch-jobs.mjs --out site/jobs.json",
     "test": "node --test 'test/**/*.test.mjs'"
   }
 }
