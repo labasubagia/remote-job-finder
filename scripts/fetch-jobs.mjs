@@ -9,6 +9,7 @@ import { pathToFileURL } from "node:url";
 const UA = "remote-job-finder/0.1 (+https://github.com/remote-job-finder)";
 const ATTEMPTS = 3;
 const TIMEOUT_MS = 20_000;
+const MAX_TAGS_PER_JOB = 8;
 const MAX_EXCERPT = 200;
 const MAX_AGE_DAYS = 30;
 const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
@@ -99,7 +100,7 @@ const tags = (v) =>
   (Array.isArray(v) ? v : v ? [v] : [])
     .map((t) => String(t).trim())
     .filter(Boolean)
-    .slice(0, 8);
+    .slice(0, MAX_TAGS_PER_JOB);
 
 /** RSS 2.0 <item> blocks; a feed that renames its items is a schema change, not an empty day. */
 const rssItems = (source, text) => {
@@ -321,6 +322,33 @@ export const SOURCES = {
   },
 };
 
+export async function fetchSource(name, source, fetchImpl) {
+  const text = await fetchText(name, source.url, { fetchImpl });
+  return source.parse(text);
+}
+
+function filterJobs(parsed, name, log) {
+  const linked = parsed.filter((j) => isHttpUrl(j.url));
+  if (linked.length < parsed.length) {
+    log(`${name}: dropped ${parsed.length - linked.length} job(s) with a non-http url`);
+  }
+  return linked;
+}
+
+function filterFresh(linked, cutoff, name, parsedLength, log, maxAgeDays) {
+  const fresh = linked.filter((j) => j.postedAt && Date.parse(j.postedAt) >= cutoff);
+  if (fresh.length === 0) {
+    throw fail(name, `0 of ${parsedLength} jobs newer than ${maxAgeDays}d — check the source before publishing`);
+  }
+  log(`${name}: ${parsedLength} parsed, ${fresh.length} kept (${maxAgeDays}d window)`);
+  return fresh;
+}
+
+function deduplicateAndSort(jobs) {
+  const unique = new Map(jobs.map((j) => [j.id, j]));
+  return [...unique.values()].sort((a, b) => b.postedAt.localeCompare(a.postedAt));
+}
+
 export async function collectJobs({
   fetchImpl = fetch,
   now = Date.now(),
@@ -328,22 +356,16 @@ export async function collectJobs({
   log = () => {},
 } = {}) {
   const cutoff = now - maxAgeDays * 86_400_000;
-  const collected = [];
-  for (const [name, source] of Object.entries(SOURCES)) {
-    const parsed = source.parse(await fetchText(name, source.url, { fetchImpl }));
-    const linked = parsed.filter((j) => isHttpUrl(j.url));
-    if (linked.length < parsed.length) {
-      log(`${name}: dropped ${parsed.length - linked.length} job(s) with a non-http url`);
-    }
-    const fresh = linked.filter((j) => j.postedAt && Date.parse(j.postedAt) >= cutoff);
-    if (fresh.length === 0) {
-      throw fail(name, `0 of ${parsed.length} jobs newer than ${maxAgeDays}d — check the source before publishing`);
-    }
-    log(`${name}: ${parsed.length} parsed, ${fresh.length} kept (${maxAgeDays}d window)`);
-    collected.push(...fresh);
-  }
-  const unique = new Map(collected.map((j) => [j.id, j]));
-  return [...unique.values()].sort((a, b) => b.postedAt.localeCompare(a.postedAt));
+
+  const results = await Promise.all(
+    Object.entries(SOURCES).map(async ([name, source]) => {
+      const parsed = await fetchSource(name, source, fetchImpl);
+      const linked = filterJobs(parsed, name, log);
+      return filterFresh(linked, cutoff, name, parsed.length, log, maxAgeDays);
+    }),
+  );
+
+  return deduplicateAndSort(results.flat());
 }
 
 async function main(argv) {
