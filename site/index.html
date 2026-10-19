@@ -87,6 +87,36 @@
       content-visibility: auto;
       contain-intrinsic-size: auto 110px;
     }
+    .num {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 2.2rem;
+      height: 1.5rem;
+      margin-right: 0.75rem;
+      font-size: 0.75rem;
+      font-variant-numeric: tabular-nums;
+      color: var(--muted);
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 0.25rem;
+      flex-shrink: 0;
+    }
+    li {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      gap: 0.5rem 0.75rem;
+    }
+    li > a {
+      flex: 1 1 calc(100% - 3rem);
+      min-width: 0;
+    }
+    .sub,
+    .why,
+    .tags {
+      width: 100%;
+    }
     li a {
       font-weight: 600;
       text-decoration: none;
@@ -256,7 +286,8 @@
       list.innerHTML = shown.length
         ? shown
             .map(
-              (j) => `<li>
+              (j, i) => `<li>
+          <span class="num">${i + 1}</span>
           <a href="${esc(j.url)}" target="_blank" rel="noopener">${esc(j.title)}</a>
           <div class="sub">${esc(j.company)} · ${esc(j.source)} · ${ago(j.postedAt)}</div>
           ${j.why?.length ? `<div class="why">match: ${esc(j.why.join(" · "))}</div>` : ""}
