@@ -101,6 +101,17 @@ const tags = (v) =>
     .filter(Boolean)
     .slice(0, 8);
 
+/** RSS 2.0 <item> blocks; a feed that renames its items is a schema change, not an empty day. */
+const rssItems = (source, text) => {
+  const items = text.match(/<item>[\s\S]*?<\/item>/g);
+  if (!items?.length) throw fail(source, "no <item> in RSS (feed changed?)");
+  return items;
+};
+
+/** First occurrence of an RSS element in one <item>, decoded; "" when the feed omits it. */
+const field = (raw, name) =>
+  decode(String(raw.match(new RegExp(`<${name}[^>]*>([\\s\\S]*?)</${name}>`))?.[1] ?? "").trim());
+
 export const SOURCES = {
   remoteok: {
     url: "https://remoteok.com/api",
@@ -181,13 +192,10 @@ export const SOURCES = {
   wwr: {
     url: "https://weworkremotely.com/categories/remote-programming-jobs.rss",
     parse(text) {
-      const items = text.match(/<item>[\s\S]*?<\/item>/g);
-      if (!items?.length) throw fail("wwr", "no <item> in RSS (feed changed?)");
-      return items.map((raw) => {
-        const pick = (re) => decode((raw.match(re)?.[1] ?? "").trim());
-        const link = pick(/<link>([\s\S]*?)<\/link>/) || pick(/<guid[^>]*>([\s\S]*?)<\/guid>/);
+      return rssItems("wwr", text).map((raw) => {
+        const link = field(raw, "link") || field(raw, "guid");
         if (!link) throw fail("wwr", "item without link");
-        const full = pick(/<title>([\s\S]*?)<\/title>/);
+        const full = field(raw, "title");
         const [head, ...rest] = full.split(/:\s*/);
         const slug = link.split("/").filter(Boolean).pop();
         return {
@@ -196,10 +204,118 @@ export const SOURCES = {
           company: rest.length ? head : "",
           url: link,
           source: "wwr",
-          tags: tags(pick(/<category>([\s\S]*?)<\/category>/)),
-          postedAt: iso(pick(/<pubDate>([\s\S]*?)<\/pubDate>/)),
-          excerpt: excerpt(pick(/<description>([\s\S]*?)<\/description>/)),
+          tags: tags(field(raw, "category")),
+          postedAt: iso(field(raw, "pubDate")),
+          excerpt: excerpt(field(raw, "description")),
         };
+      });
+    },
+  },
+  jobicy: {
+    url: "https://jobicy.com/api/v2/remote-jobs?count=50",
+    parse(text) {
+      const jobs = JSON.parse(text)?.jobs;
+      if (!Array.isArray(jobs)) throw fail("jobicy", "missing jobs[] (schema changed?)");
+      return jobs.map((j) => ({
+        id: `jobicy-${j.id}`,
+        title: j.jobTitle,
+        company: j.companyName ?? "",
+        url: j.url,
+        source: "jobicy",
+        // jobIndustry already reads like the role chips: "Software Engineering", "Data Science & Analytics"
+        tags: tags(j.jobIndustry),
+        postedAt: iso(j.pubDate),
+        excerpt: excerpt(j.jobExcerpt || j.jobDescription),
+      }));
+    },
+  },
+  workingnomads: {
+    url: "https://www.workingnomads.com/api/exposed_jobs/",
+    parse(text) {
+      const jobs = JSON.parse(text);
+      if (!Array.isArray(jobs)) throw fail("workingnomads", "expected a JSON array (schema changed?)");
+      return jobs.map((j) => {
+        const path = String(j.url ?? "");
+        return {
+          id: `workingnomads-${path.split("/").filter(Boolean).pop() || j.title}`,
+          title: j.title,
+          company: j.company_name ?? "",
+          url: j.url,
+          source: "workingnomads",
+          // tags arrive as one comma-separated string; category_name is the closest thing to a role
+          tags: tags([j.category_name, ...String(j.tags ?? "").split(",")]),
+          postedAt: iso(j.pub_date),
+          excerpt: excerpt(j.description),
+        };
+      });
+    },
+  },
+  nodesk: {
+    url: "https://nodesk.co/remote-jobs/index.xml",
+    parse(text) {
+      return rssItems("nodesk", text).map((raw) => {
+        // titles are "Role at Company"
+        const full = field(raw, "title");
+        const at = full.lastIndexOf(" at ");
+        const link = field(raw, "link");
+        if (!link) throw fail("nodesk", "item without link");
+        return {
+          id: `nodesk-${link.split("/").filter(Boolean).pop()}`,
+          title: at > 0 ? full.slice(0, at) : full,
+          company: at > 0 ? full.slice(at + 4) : "",
+          url: link,
+          source: "nodesk",
+          tags: [],
+          postedAt: iso(field(raw, "pubDate")),
+          excerpt: excerpt(field(raw, "description")),
+        };
+      });
+    },
+  },
+  jobspresso: {
+    url: "https://jobspresso.co/feed/?post_type=job_listing",
+    parse(text) {
+      return rssItems("jobspresso", text).map((raw) => {
+        const link = field(raw, "link");
+        if (!link) throw fail("jobspresso", "item without link");
+        // dc:creator carries "Company<br>⚲ Location"; the company is everything before the break
+        const creator = field(raw, "dc:creator").split(/<br\s*\/?>/i)[0];
+        return {
+          id: `jobspresso-${link.split("/").filter(Boolean).pop()}`,
+          title: field(raw, "title"),
+          company: stripHtml(creator),
+          url: link,
+          source: "jobspresso",
+          tags: [],
+          postedAt: iso(field(raw, "pubDate")),
+          excerpt: excerpt(field(raw, "description")),
+        };
+      });
+    },
+  },
+  dribbble: {
+    url: "https://dribbble.com/jobs.rss",
+    parse(text) {
+      return rssItems("dribbble", text).flatMap((raw) => {
+        // "Company is hiring for a position of Role in Location"; the feed also carries onsite roles
+        const m = field(raw, "title").match(/^(.+?) is hiring for a position of (.+?) in (.+)$/);
+        const link = field(raw, "link");
+        if (!m || !link) return [];
+        const [, company, title, place] = m;
+        if (!/^remote\b/i.test(place)) return [];
+        const slug = link.split("?")[0].split("/").filter(Boolean).pop();
+        return [
+          {
+            id: `dribbble-${slug}`,
+            title,
+            company,
+            url: link,
+            source: "dribbble",
+            tags: [place],
+            postedAt: iso(field(raw, "pubDate")),
+            excerpt: excerpt(field(raw, "description")),
+          },
+        ];
       });
     },
   },

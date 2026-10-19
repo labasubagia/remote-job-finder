@@ -92,6 +92,66 @@ const body = {
       <description><![CDATA[<p>Remote anywhere</p>]]></description>
     </item>
   </channel></rss>`,
+  jobicy: JSON.stringify({
+    jobs: [
+      {
+        id: 101,
+        jobTitle: "Backend Engineer",
+        companyName: "JobicyCo",
+        url: "https://jobicy.com/j/101",
+        pubDate: recent(1),
+        jobIndustry: ["Software Engineering"],
+        jobExcerpt: "Remote backend role",
+        jobDescription: "",
+      },
+      {
+        id: 102,
+        jobTitle: "Stale Designer",
+        companyName: "OldCo",
+        url: "https://jobicy.com/j/102",
+        pubDate: recent(90),
+        jobIndustry: ["Web, UI & UX Design"],
+        jobExcerpt: "Stale",
+      },
+    ],
+  }),
+  workingnomads: JSON.stringify([
+    {
+      url: "https://www.workingnomads.com/job/go/201/",
+      title: "Frontend Developer",
+      company_name: "WNCo",
+      pub_date: recent(2),
+      tags: "react,typescript",
+      category_name: "Development",
+      description: "Remote frontend",
+      location: "Worldwide",
+    },
+  ]),
+  nodesk: `<?xml version="1.0"?><rss><channel>
+    <item>
+      <title>Full Stack Engineer at NodeskCo</title>
+      <link>https://nodesk.co/remote-jobs/nodesk-fullstack/</link>
+      <pubDate>${new Date(Date.now() - 3 * day).toUTCString()}</pubDate>
+      <description><![CDATA[<p>Remote full stack</p>]]></description>
+    </item>
+  </channel></rss>`,
+  jobspresso: `<?xml version="1.0"?><rss><channel>
+    <item>
+      <title>DevOps Engineer</title>
+      <link>https://jobspresso.co/job/devops-engineer/</link>
+      <dc:creator><![CDATA[JobspressoCo<br>⚲ United States (Remote)]]></dc:creator>
+      <pubDate>${new Date(Date.now() - 4 * day).toUTCString()}</pubDate>
+      <description><![CDATA[<p>Remote devops</p>]]></description>
+    </item>
+  </channel></rss>`,
+  dribbble: `<?xml version="1.0"?><rss><channel>
+    <item>
+      <title>DesignCo is hiring for a position of Product Designer in Remote</title>
+      <link>https://dribbble.com/jobs/301-Product-Designer?source=feed</link>
+      <pubDate>${new Date(Date.now() - 5 * day).toUTCString()}</pubDate>
+      <description><![CDATA[<p>Remote product design</p>]]></description>
+    </item>
+  </channel></rss>`,
 };
 
 const okFetch = (url) => {
@@ -103,15 +163,20 @@ test("collects fresh remote jobs from every source, normalised and deduped", asy
   const logs = [];
   const jobs = await collectJobs({ fetchImpl: okFetch, log: (m) => logs.push(m) });
 
-  assert.equal(logs.length, 5, "logs one line per source");
+  assert.equal(logs.length, 10, "logs one line per source");
   assert.deepEqual([...new Set(jobs.map((j) => j.source))].sort(), [
     "arbeitnow",
+    "dribbble",
     "himalayas",
+    "jobicy",
+    "jobspresso",
+    "nodesk",
     "remoteok",
     "remotive",
+    "workingnomads",
     "wwr",
   ]);
-  assert.equal(jobs.length, 6, "stale remoteok job and onsite arbeitnow job dropped");
+  assert.equal(jobs.length, 11, "stale/onsite jobs dropped");
   assert.equal(new Set(jobs.map((j) => j.id)).size, jobs.length, "ids unique");
 
   for (const j of jobs) {
@@ -129,14 +194,16 @@ test("collects fresh remote jobs from every source, normalised and deduped", asy
   );
   assert.equal(jobs.find((j) => j.id === "wwr-epsilon-senior-rust-engineer").company, "Epsilon");
   assert.equal(jobs.find((j) => j.id === "wwr-epsilon-senior-rust-engineer").title, "Full Time: Senior Rust Engineer");
+  assert.equal(jobs.find((j) => j.id === "jobicy-101").title, "Backend Engineer");
+  assert.equal(jobs.find((j) => j.id === "dribbble-301-Product-Designer").source, "dribbble");
 });
 
 test("retries transient failures, then succeeds", async () => {
   let calls = 0;
   const flaky = (url) => (++calls < 3 ? Promise.resolve({ ok: false, status: 503 }) : okFetch(url));
   const jobs = await collectJobs({ fetchImpl: flaky });
-  assert.equal(jobs.length, 6);
-  assert.equal(calls, 7, "2 retries for remoteok + 1 call per remaining source");
+  assert.equal(jobs.length, 11);
+  assert.equal(calls, 12, "2 retries for remoteok + 1 call per remaining source");
 });
 
 test("4xx is fatal and never retried (blocked / ToS / auth)", async () => {
@@ -242,7 +309,7 @@ test("jobs whose url is not http(s) are dropped instead of becoming javascript: 
       ...r,
       text: () =>
         r.text().then((t) =>
-          url.includes("remoteok")
+          url.includes("remoteok") || url.includes("jobicy")
             ? // append one fresh row carrying a hostile scheme; the legit rows stay
               t.replace(
                 /\]$/,
@@ -254,7 +321,7 @@ test("jobs whose url is not http(s) are dropped instead of becoming javascript: 
   const jobs = await collectJobs({ fetchImpl: hostile, log: (m) => logs.push(m) });
   assert.ok(!jobs.some((j) => j.url.startsWith("javascript:")), "no javascript: url published");
   assert.ok(jobs.every((j) => /^https?:\/\//.test(j.url)));
-  assert.equal(jobs.length, 6, "the hostile row is gone, the legit rows remain");
+  assert.equal(jobs.length, 11, "the hostile rows are gone, the legit rows remain");
   assert.ok(
     logs.some((m) => m.includes("non-http url")),
     "dropping is logged",
