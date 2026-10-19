@@ -1,6 +1,24 @@
 // Profile-based ranking. Pure functions, no dependencies, shared by the page and the tests.
 // Zero setup for the visitor: nothing is downloaded, no key, no network call.
 
+// Shared constants for UI
+export const ROLES = [
+  "Software engineer",
+  "Data scientist",
+  "Product designer",
+  "Marketing",
+  "Customer support",
+  "Sales",
+  "HR / recruiter",
+  "DevOps / SRE",
+  "Machine learning",
+  "Engineering manager",
+];
+
+// Minimal HTML escape -- only the chars that matter in attribute/text context.
+export const esc = (s) =>
+  String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&", "<": "<", ">": ">", '"': "&quot;" })[c]);
+
 export const PROFILE_KEY = "rjf.profile.v1";
 
 // First entry is the canonical form; the rest are aliases that must fold into it.
