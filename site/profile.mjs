@@ -107,11 +107,13 @@ const within1 = (a, b) => {
   let i = 0;
   while (i < s.length && s[i] === t[i]) i++;
   if (i === s.length) return true; // s is a prefix of t
-  return (
-    s.slice(i + 1) === t.slice(i + 1) || // substitution, or one extra char in t
-    s.slice(i + 1) === t.slice(i + 2) || // one extra char in s
-    (s[i] === t[i + 1] && s[i + 1] === t[i] && s.slice(i + 2) === t.slice(i + 2)) // transposition
-  );
+  if (s.length === t.length) {
+    return (
+      s.slice(i + 1) === t.slice(i + 1) || // substitution
+      (s[i] === t[i + 1] && s[i + 1] === t[i] && s.slice(i + 2) === t.slice(i + 2)) // transposition
+    );
+  }
+  return s.slice(i) === t.slice(i + 1); // one extra char in t
 };
 
 const MIN_FUZZY = 5;

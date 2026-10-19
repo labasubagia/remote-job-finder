@@ -1,1 +1,3 @@
-npx biome check --staged --write --no-errors-on-unmatched && git add -u
+# Format and lint what is being committed, but never rewrite the index: a hook
+# that stages files behind your back commits changes you did not review.
+npx biome check --staged --no-errors-on-unmatched
