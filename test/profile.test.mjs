@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { matchedTerms, rankJobs, scoreJob, terms } from "../site/profile.mjs";
+import { jobMatches, matchedTerms, rankJobs, scoreJob, searchScore, terms } from "../site/profile.mjs";
 
 const job = (id, title, tags = [], excerpt = "", postedAt = "2026-10-01T00:00:00Z") => ({
   id,
@@ -76,4 +76,43 @@ test("rankJobs with no profile is pure recency and never reorders the input arra
 test("matchedTerms reports why a job surfaced", () => {
   const j = job("be", "Backend Engineer", ["go", "postgres"], "Own the API");
   assert.deepEqual(matchedTerms(terms("backend go rust"), j), ["backend", "go"]);
+});
+
+test("jobMatches tolerates typos, partial words and searches every field", () => {
+  const eng = job("e", "Backend Engineer", ["go", "postgres"], "Own the payments API for a fintech.");
+  const design = job("d", "Product Designer", ["figma"], "Shape the design system.");
+
+  assert.ok(jobMatches("enigneer", eng), "transposition");
+  assert.ok(jobMatches("enginer", eng), "missing letter");
+  assert.ok(jobMatches("enginerr", eng), "extra letter");
+  assert.ok(jobMatches("softw", job("s", "Software Engineer")), "prefix");
+  assert.ok(jobMatches("react", job("r", "Frontend Dev", ["react"])), "tags are searched");
+  assert.ok(jobMatches("fintech", eng), "excerpt is searched");
+  assert.ok(jobMatches("acme", job("c", "Anything")), "company is searched");
+  assert.ok(jobMatches("backend engineer", eng), "all tokens must match");
+  assert.ok(!jobMatches("backend designer", eng), "AND across tokens");
+  assert.ok(!jobMatches("zzzzz", eng), "no match stays no match");
+  assert.ok(!jobMatches("design", eng), "no cross-job bleed");
+  assert.ok(jobMatches("", eng) && jobMatches("   ", eng), "empty query matches everything");
+  assert.ok(!jobMatches("go", design), "short tokens are not fuzzy-matched");
+  assert.ok(jobMatches("go", eng), "short token still matches exactly");
+});
+
+test("search never matches an inner substring of a word", () => {
+  const talky = job("t", "Account Manager", [], "Managing interaction with clients.");
+  assert.ok(!jobMatches("react", talky), "'react' must not match 'inte(ract)ion'");
+  assert.ok(!jobMatches("sign", talky), "'sign' must not match the middle of a word");
+  assert.ok(jobMatches("sign", job("s", "Signing Bonus Specialist")), "prefix still matches");
+});
+
+test("searchScore ranks title hits above tag hits above excerpt hits", () => {
+  const title = job("t", "Kubernetes Platform Engineer");
+  const tags = job("g", "Platform person", ["kubernetes"]);
+  const excerpt = job("e", "Platform person", [], "We run kubernetes clusters.");
+  assert.equal(searchScore("kubernetes", title), 3);
+  assert.equal(searchScore("kubernetes", tags), 2);
+  assert.equal(searchScore("kubernetes", excerpt), 1);
+  assert.equal(searchScore("kubernetes", job("n", "Unrelated")), 0);
+  assert.equal(searchScore("kubernetes platform", title), 6, "token scores add up, two title hits");
+  assert.equal(searchScore("", title), 0);
 });
