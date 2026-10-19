@@ -87,6 +87,76 @@ export function matchedTerms(profileTerms, job) {
   return [...profileTerms].filter((t) => inJob.has(t));
 }
 
+// --- Search box: typo-tolerant, literal (no alias folding); every query token must hit a job word. ---
+
+const words = (text) =>
+  String(text ?? "")
+    .toLowerCase()
+    .split(/[^a-z0-9+#]+/)
+    .filter((w) => w.length > 1);
+
+// True when a and b differ by at most one insertion, deletion, substitution or transposition.
+const within1 = (a, b) => {
+  if (a === b) return true;
+  const [s, t] = a.length <= b.length ? [a, b] : [b, a];
+  if (t.length - s.length > 1) return false;
+  let i = 0;
+  while (i < s.length && s[i] === t[i]) i++;
+  if (i === s.length) return true; // s is a prefix of t
+  return (
+    s.slice(i + 1) === t.slice(i + 1) || // substitution, or one extra char in t
+    s.slice(i + 1) === t.slice(i + 2) || // one extra char in s
+    (s[i] === t[i + 1] && s[i + 1] === t[i] && s.slice(i + 2) === t.slice(i + 2)) // transposition
+  );
+};
+
+const MIN_FUZZY = 5;
+
+// Prefix-style rules only, never a blind substring test: "react" must not match "inte(ract)ion".
+const tokenHit = (q, word) => word === q || word.startsWith(q) || (q.length >= MIN_FUZZY && within1(q, word));
+
+const SEARCH_FIELDS = [
+  [3, (j) => j.title],
+  [2, (j) => (j.tags || []).join(" ")],
+  [1, (j) => j.company],
+  [1, (j) => j.excerpt],
+];
+
+const searchSets = new WeakMap();
+const searchFields = (job) => {
+  let s = searchSets.get(job);
+  if (!s) searchSets.set(job, (s = SEARCH_FIELDS.map(([weight, get]) => [weight, words(get(job))])));
+  return s;
+};
+
+// Sum of the best field weight per query token; 0 means the job does not match.
+const scoreTokens = (wanted, job) => {
+  if (!wanted.length) return 0;
+  let total = 0;
+  for (const t of wanted) {
+    let best = 0;
+    for (const [weight, hay] of searchFields(job)) {
+      if (weight > best && hay.some((w) => tokenHit(t, w))) best = weight;
+    }
+    if (!best) return 0; // every token has to match somewhere
+    total += best;
+  }
+  return total;
+};
+
+export function searchTokens(query) {
+  return [...new Set(words(query))];
+}
+
+export function searchScore(query, job) {
+  return scoreTokens(searchTokens(query), job);
+}
+
+export function jobMatches(query, job) {
+  const wanted = searchTokens(query);
+  return !wanted.length || scoreTokens(wanted, job) > 0;
+}
+
 // Recommended: profile score desc, then newest. No profile: pure recency (same as Newest).
 export function rankJobs(jobs, profileText) {
   const profileTerms = terms(profileText);

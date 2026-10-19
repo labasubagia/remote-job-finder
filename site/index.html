@@ -35,7 +35,7 @@
     </header>
     <div id="chips"></div>
     <header>
-      <input id="q" type="search" placeholder="Filter title or company" autocomplete="off" />
+      <input id="q" type="search" placeholder="Search title, company, tags, description" autocomplete="off" />
       <select id="sort">
         <option value="best">Best match</option>
         <option value="new">Newest</option>
@@ -53,7 +53,7 @@
       <a href="https://weworkremotely.com" rel="noopener">We Work Remotely</a>.
     </footer>
     <script type="module">
-      import { PROFILE_KEY, matchedTerms, rankJobs, terms } from "./profile.mjs";
+      import { PROFILE_KEY, jobMatches, matchedTerms, rankJobs, searchScore, terms } from "./profile.mjs";
       const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
       const ago = (iso) => {
         const d = Math.max(0, (Date.now() - Date.parse(iso)) / 864e5);
@@ -89,21 +89,22 @@
       }
 
       function render() {
-        const needle = q.value.trim().toLowerCase();
+        const needle = q.value.trim();
         const pick = src.value;
         const profile = p.value.trim();
-        let shown = jobs.filter(
-          (j) => (!pick || j.source === pick) && (!needle || `${j.title} ${j.company}`.toLowerCase().includes(needle)),
-        );
-        const ranked = sort.value === "best" && Boolean(profile);
-        if (ranked) {
+        let shown = jobs.filter((j) => (!pick || j.source === pick) && jobMatches(needle, j));
+        // A query means "find this specific job": relevance order beats profile order.
+        const ranked = !needle && sort.value === "best" && Boolean(profile);
+        if (needle) {
+          shown.sort((a, b) => searchScore(needle, b) - searchScore(needle, a) || Date.parse(b.postedAt) - Date.parse(a.postedAt));
+        } else if (ranked) {
           const wanted = terms(profile);
           shown = rankJobs(shown, profile).map(({ job }) => ({ ...job, why: matchedTerms(wanted, job) }));
         } else {
           shown.sort((a, b) => Date.parse(b.postedAt) - Date.parse(a.postedAt));
         }
         meta.textContent = `${shown.length} of ${jobs.length} remote jobs · ${new Date().toLocaleDateString()}${
-          ranked ? ` · ranked for "${profile.length > 32 ? `${profile.slice(0, 32)}…` : profile}"` : ""
+          needle ? ` · best matches for "${needle.length > 32 ? `${needle.slice(0, 32)}…` : needle}"` : ranked ? ` · ranked for "${profile.length > 32 ? `${profile.slice(0, 32)}…` : profile}"` : ""
         }`;
         list.innerHTML = shown.length
           ? shown
