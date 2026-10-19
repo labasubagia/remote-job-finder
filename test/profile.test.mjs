@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { jobMatches, matchedTerms, rankJobs, scoreJob, searchScore, terms } from "../site/profile.mjs";
+import { jobMatches, matchedTerms, rankJobs, scoreJob, searchScore, terms } from "../site/search.mjs";
 
 const job = (id, title, tags = [], excerpt = "", postedAt = "2026-10-01T00:00:00Z") => ({
   id,
