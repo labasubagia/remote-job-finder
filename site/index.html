@@ -83,6 +83,9 @@
     li {
       padding: 1.1rem 0;
       border-top: 1px solid var(--line);
+      /* 1000+ rows: only paint and lay out the ones near the viewport */
+      content-visibility: auto;
+      contain-intrinsic-size: auto 110px;
     }
     li a {
       font-weight: 600;
