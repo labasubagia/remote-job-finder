@@ -11,7 +11,10 @@ Zero runtime dependencies. The page ships `index.html` plus two ES modules (`app
 - **10 role chips** — categorical role filters, e.g. `Software engineer`, `Data scientist`, `HR / recruiter`. Selected chips narrow the list (SQL `IN`, matching classified role or title without leaking noisy tags). Selected roles are remembered in `localStorage` under `rjf.profile.v1` (wrapped in try/catch, so private mode still works, it just forgets).
 - **Search box** — `title`, `tags`, `company` and `excerpt` are searched, typos included (`enigneer`, `desgin`, `softw` all hit), and it combines with the active role filter via `AND`. While a query is active, results are ordered by relevance instead of recency, unless `Newest` is selected.
 - **Sort** — `Best match` (relevance or role bonus within the filtered set) or `Newest` (recency within the same set); a source filter narrows to one feed.
-
+- **Geography filter** — "My timezone" (with tolerance slider, default ±2h), regional dropdowns (Americas/EMEA/APAC), and "Worldwide".
+- **Match highlights** — each job shows "match: term1 · term2" badges explaining why it surfaced.
+- **Feed source badge** — each job displays its source (remoteok, remotive, etc.).
+- **Relative timestamps** — e.g. "3 days ago" using `Intl.RelativeTimeFormat`.
 ## Data
 
 `scripts/fetch-jobs.mjs` aggregates five public feeds: remoteok, remotive, arbeitnow, himalayas, wwr.
@@ -75,10 +78,10 @@ Ranking and search scoring:
 ## Geography filter
 
 - `scripts/timezone.mjs` turns each job's free-text `location` into UTC offsets at build time, reading ICU's tz database through `Intl` instead of shipping a city list: `Copenhagen` -> `[2]`, `Vancouver` -> `[-7]`, `United States` -> `[-10..-5]`, `Kansas` -> `[-6,-5]`, `NYC or Remote (EST or CST)` -> `[-6,-5]`.
-- The browser only compares numbers. "My timezone" keeps a job when any of its offsets is within the tolerance of the reader's clock.
-- A label that names no place (`Remote`, `Worldwide`, a company name) or a town ICU does not know stays visible: roughly 2% of the feed. Guessing those away would hide takeable jobs, which is worse than showing a doubtful one.
-- The regional dropdowns use fixed bands: Americas -10..-3, EMEA -1..+4, APAC +5..+12. They intentionally differ from a tolerance window: a region is a place, not a distance.
-
+- The browser only compares numbers. "My timezone" keeps a job when any of its offsets is within the tolerance of the reader's clock. Jobs with no resolvable offsets are **kept** (safe default).
+- The regional dropdowns (Americas -10..-3, EMEA -1..+4, APAC +5..+12) **hide** jobs with no resolvable offsets. They intentionally differ from a tolerance window: a region is a place, not a distance.
+- "Worldwide" matches `worldwide|anywhere|global` in the location text (word boundaries).
+- A label that names no place (`Remote`, `Worldwide`, a company name) or a town ICU does not know stays visible in "My timezone"; roughly 2% of the feed. Guessing those away would hide takeable jobs, which is worse than showing a doubtful one.
 ## Automation
 
 - `.github/workflows/jobs.yml` — daily at `17 6 * * *`, on `workflow_dispatch`, and on every push to `main`: tests, fetch, role classification, deploy to Pages. The classifier's wheels (uv cache), weights (Hugging Face cache) and previous results are cached; a classifier failure degrades to keyword ranking instead of blocking the deploy.
