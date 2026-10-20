@@ -1,6 +1,15 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { jobMatches, matchedTerms, profileMatcher, rankJobs, scoreJob, searchScore, terms } from "../site/search.mjs";
+import {
+  jobMatches,
+  matchedTerms,
+  profileMatcher,
+  rankJobs,
+  roleMatcher,
+  scoreJob,
+  searchScore,
+  terms,
+} from "../site/search.mjs";
 
 const job = (id, title, tags = [], excerpt = "", postedAt = "2026-10-01T00:00:00Z") => ({
   id,
@@ -171,4 +180,22 @@ test("profile conditions combine with AND, roles are one IN condition", () => {
 test("an empty profile filters nothing", () => {
   const anything = profileMatcher("   ");
   assert.ok(anything(job("a", "Anything", ["whatever"])));
+});
+
+test("roleMatcher accepts a Set of active role labels and filters with SQL IN semantics", () => {
+  const activeRoles = new Set(["HR / recruiter"]);
+  const matcher = roleMatcher(activeRoles);
+  assert.ok(matcher({ ...job("h", "Recruiter"), role: "hr-recruiter" }));
+  assert.ok(matcher(job("p", "People Operations Coordinator")));
+  assert.ok(
+    !matcher({ ...job("s", "Principal Software Engineer", ["dev", "recruiter"]) }),
+    "noisy recruiter tag must never match",
+  );
+  assert.ok(!matcher({ ...job("m", "Growth Lead"), role: "marketing" }));
+
+  activeRoles.add("Marketing");
+  const multiMatcher = roleMatcher(activeRoles);
+  assert.ok(multiMatcher({ ...job("h", "Recruiter"), role: "hr-recruiter" }));
+  assert.ok(multiMatcher({ ...job("m", "Growth Lead"), role: "marketing" }));
+  assert.ok(!multiMatcher({ ...job("s", "Software Engineer"), role: "software-engineer" }));
 });

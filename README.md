@@ -8,10 +8,9 @@ Zero runtime dependencies. The page ships `index.html` plus two ES modules (`app
 
 ## What visitors get
 
-- **Preference box + 10 role chips** — free text, e.g. `software engineer`, `data scientist`, `HR / recruiter`, combined with commas. The profile is remembered in `localStorage` under `rjf.profile.v1` (wrapped in try/catch, so private mode still works, it just forgets).
-- **Profile filter, AND across conditions** — the profile narrows the list. Selected role chips are one condition (match any of them, SQL `IN`), every free-text entry is another condition (all must match). A role matches the classified `role`, or the title when the classifier left the job unlabelled, so unclassified postings stay reachable.
-- **Search box** — `title`, `tags`, `company` and `excerpt` are searched, typos included (`enigneer`, `desgin`, `softw` all hit), and it combines with the profile filter. While a query is active, results are ordered by relevance instead of recency, unless `Newest` is selected.
-- **Sort** — `Best match` (profile order within the filtered set) or `Newest` (recency within the same set); a source filter narrows to one feed.
+- **10 role chips** — categorical role filters, e.g. `Software engineer`, `Data scientist`, `HR / recruiter`. Selected chips narrow the list (SQL `IN`, matching classified role or title without leaking noisy tags). Selected roles are remembered in `localStorage` under `rjf.profile.v1` (wrapped in try/catch, so private mode still works, it just forgets).
+- **Search box** — `title`, `tags`, `company` and `excerpt` are searched, typos included (`enigneer`, `desgin`, `softw` all hit), and it combines with the active role filter via `AND`. While a query is active, results are ordered by relevance instead of recency, unless `Newest` is selected.
+- **Sort** — `Best match` (relevance or role bonus within the filtered set) or `Newest` (recency within the same set); a source filter narrows to one feed.
 
 ## Data
 
@@ -55,8 +54,8 @@ Node >= 22 (CI runs 24). `npm run fetch` hits the real feeds; most of them send 
 | `scripts/apply-roles.mjs` | Merges cached and fresh predictions into `jobs.json`, then saves the merged list for the cache |
 | `site/index.html` | The page: styles and markup; loads the app module through a single `<script type="module">` import |
 | `site/app.mjs` | DOM side: `init()` plus the state, rendering and event wiring |
-| `site/search.mjs` | Pure logic, no DOM: `terms`, `scoreJob`, `profileMatcher`, `matchedTerms`, `rankJobs`, `searchTokens`, `searchScore`, `jobMatches`, `ROLES`, `ROLE_IDS`, `ROLE_BY_LABEL`, `labelKey`, `PROFILE_KEY`, `esc`; a matching classified role adds a fixed bonus |
-| `test/*.test.mjs` | `node:test` suites (67 tests) covering the scripts, both modules, and the filter UI through a DOM stub |
+| `site/search.mjs` | Pure logic, no DOM: `terms`, `scoreJob`, `profileMatcher`, `roleMatcher`, `matchedTerms`, `rankJobs`, `searchTokens`, `searchScore`, `jobMatches`, `ROLES`, `ROLE_IDS`, `ROLE_BY_LABEL`, `labelKey`, `PROFILE_KEY`, `esc`; a matching classified role adds a fixed bonus |
+| `test/*.test.mjs` | `node:test` suites (68 tests) covering the scripts, both modules, and the filter UI through a DOM stub |
 | `biome.json` | Formatter + linter config (line width 120, organised imports) |
 
 Ranking and search scoring:

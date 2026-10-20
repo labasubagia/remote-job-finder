@@ -151,6 +151,30 @@ export function scoreJob(profileTerms, job) {
   return score / profileTerms.size;
 }
 
+// Role filter: match any of the selected roles (SQL `IN`).
+// A role matches by classified `role`, or by `title` when unclassified,
+// so unclassified postings stay reachable without leaking noisy tags.
+export function roleMatcher(roles) {
+  const roleIds = new Set();
+  if (roles) {
+    const list = Array.isArray(roles) || roles instanceof Set ? roles : String(roles).split(",");
+    for (const entry of list) {
+      const value = String(entry).trim();
+      if (!value) continue;
+      const id = ROLE_BY_LABEL.get(labelKey(value));
+      if (id) roleIds.add(id);
+      else if (ROLE_IDS.includes(value)) roleIds.add(value);
+    }
+  }
+  if (!roleIds.size) return () => true;
+  return (job) => {
+    const title = terms(job.title);
+    const byRole = Boolean(job.role) && roleIds.has(job.role);
+    const byTitle = [...roleIds].some((id) => [...ROLE_LABEL_TERMS.get(id)].every((t) => title.has(t)));
+    return Boolean(byRole || byTitle);
+  };
+}
+
 // Profile as a filter: selected roles are one condition (OR inside, SQL `IN`),
 // free-text entries are additional conditions (all must match), so conditions
 // combine with AND. A role also matches by title, so a missing or wrong
@@ -167,13 +191,9 @@ export function profileMatcher(profileText) {
   }
   if (!roleIds.size && !textTerms.length) return () => true;
 
+  const roleCheck = roleMatcher(roleIds);
   return (job) => {
-    if (roleIds.size) {
-      const title = terms(job.title);
-      const byRole = Boolean(job.role) && roleIds.has(job.role);
-      const byTitle = [...roleIds].some((id) => [...ROLE_LABEL_TERMS.get(id)].every((t) => title.has(t)));
-      if (!byRole && !byTitle) return false;
-    }
+    if (roleIds.size && !roleCheck(job)) return false;
     if (textTerms.length) {
       const present = new Set(fieldSets(job).flatMap(([, set]) => [...set]));
       if (!textTerms.every((t) => present.has(t))) return false;
