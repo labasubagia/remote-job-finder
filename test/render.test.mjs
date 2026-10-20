@@ -137,3 +137,13 @@ test("a missing DOM element fails with a clear message instead of a TypeError", 
   const { init } = await import(`../site/app.mjs?${Math.random()}`);
   await assert.rejects(init(), /Required DOM element not found/);
 });
+test("non-array jobs.json payload is rejected with a clear message", async () => {
+  const nodes = new Map(
+    ["q", "src", "geo", "sort", "chips", "list", "meta", "tzTolerance"].map((id) => [id, stub(id)]),
+  );
+  globalThis.document = { getElementById: (id) => nodes.get(id) ?? null };
+  globalThis.localStorage = { getItem: () => null, setItem() {} };
+  globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => ({ not: "an array" }) });
+  const { init } = await import(`../site/app.mjs?${Math.random()}`);
+  await assert.rejects(init(), /must be a JSON array/);
+});

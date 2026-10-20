@@ -83,3 +83,20 @@ test("a confident role outranks an equal job that only matches by text", () => {
   );
   assert.equal(ranked[0].job.id, "typed");
 });
+test("applyRoles tolerates non-object entries in previousJobs", () => {
+  const previous = [
+    { id: "1", title: "A", company: "X", role: "software-engineer", roleConfidence: 0.9 },
+    "not an object",
+    null,
+    { id: "2", title: "B", company: "X", role: "marketing", roleConfidence: 0.8 },
+  ];
+  const jobs = [
+    { id: "1", title: "A", company: "X" },
+    { id: "2", title: "B", company: "X" },
+    { id: "3", title: "C", company: "X" },
+  ];
+  const merged = applyRoles(jobs, previous, {});
+  assert.equal(merged[0].role, "software-engineer");
+  assert.equal(merged[1].role, "marketing");
+  assert.equal("role" in merged[2], false);
+});

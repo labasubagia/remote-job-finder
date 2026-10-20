@@ -30,6 +30,7 @@ const json = (source, text) => {
 };
 
 export async function fetchText(source, url, { fetchImpl = fetch, attempts = ATTEMPTS } = {}) {
+  if (attempts < 1) attempts = 1;
   for (let attempt = 1; attempt <= attempts; attempt++) {
     let res;
     try {
@@ -45,7 +46,17 @@ export async function fetchText(source, url, { fetchImpl = fetch, attempts = ATT
       await sleep(500 * 2 ** (attempt - 1));
       continue;
     }
-    if (res.ok) return res.text();
+    if (res.ok) {
+      try {
+        return await res.text();
+      } catch (err) {
+        if (attempt === attempts) {
+          throw fail(source, `body read failed after ${attempts} attempts: ${err?.message ?? err}`);
+        }
+        await sleep(500 * 2 ** (attempt - 1));
+        continue;
+      }
+    }
     // 401/403/404/410/451 -> blocked, removed, or ToS changed: never retry, never hide.
     if (!RETRYABLE_STATUS.has(res.status)) {
       throw fail(source, `HTTP ${res.status} (blocked, moved, or ToS changed; not retrying — check source manually)`);
@@ -118,9 +129,16 @@ const rssItems = (source, text) => {
   return items;
 };
 
-/** First occurrence of an RSS element in one <item>, decoded; "" when the feed omits it. */
-const field = (raw, name) =>
-  decode(String(raw.match(new RegExp(`<${name}[^>]*>([\\s\\S]*?)</${name}>`))?.[1] ?? "").trim());
+const fieldRegexCache = new Map();
+const field = (raw, name) => {
+  let re = fieldRegexCache.get(name);
+  if (!re) {
+    const tag = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    re = new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)</${tag}>`);
+    fieldRegexCache.set(name, re);
+  }
+  return decode(String(raw.match(re)?.[1] ?? "").trim());
+};
 
 export const SOURCES = {
   remoteok: {

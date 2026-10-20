@@ -402,3 +402,41 @@ test("non-string location is coerced instead of crashing .trim()", async () => {
   assert.equal(j1.location, "12345");
   assert.equal(j2.location, null);
 });
+test("a field name only matches that exact tag, so <linkfoo> cannot shadow <link>", async () => {
+  const prefixRss = (url) => {
+    if (url.includes("weworkremotely")) {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        text: () =>
+          Promise.resolve(
+            `<?xml version="1.0"?><rss><channel><item><linkfoo>https://evil.test/x</linkfoo><title>Acme: Engineer</title><link>https://ex.com/1</link><pubDate>${recent(1)}</pubDate><description>Desc</description><category>dev</category></item></channel></rss>`,
+          ),
+      });
+    }
+    return okFetch(url);
+  };
+  const jobs = await collectJobs({ fetchImpl: prefixRss, maxAgeDays: 30 });
+  assert.ok(
+    jobs.some((j) => j.url === "https://ex.com/1"),
+    "the real <link> wins",
+  );
+  assert.ok(!jobs.some((j) => j.url.includes("evil.test")), "a longer tag name is not a match");
+});
+
+test("a response body that fails mid-read is retried, then fatal", async () => {
+  let calls = 0;
+  const brokenBody = () => {
+    calls++;
+    return Promise.resolve({
+      ok: true,
+      status: 200,
+      text: () => Promise.reject(new Error("stream reset")),
+    });
+  };
+  await assert.rejects(
+    () => fetchText("remoteok", SOURCES.remoteok.url, { fetchImpl: brokenBody, attempts: 2 }),
+    /body read failed/,
+  );
+  assert.equal(calls, 2);
+});

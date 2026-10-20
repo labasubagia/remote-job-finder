@@ -212,7 +212,8 @@
     import { init } from "./app.mjs";
 
     init().catch((err) => {
-      document.getElementById("meta").textContent = `Could not load jobs (${err.message}).`;
+      const meta = document.getElementById("meta");
+      if (meta) meta.textContent = `Could not load jobs (${err.message}).`;
     });
     </script>
   </body>

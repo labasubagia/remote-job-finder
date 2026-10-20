@@ -25,8 +25,8 @@ def same_posting(job, previous):
 
 
 def state(job):
-    tags = ", ".join(job.get("tags") or [])
-    return f"Job title: {job['title']}\nCompany: {job.get('company') or ''}\nTags: {tags}"
+    tags = ", ".join(str(t) for t in job.get("tags") or [])
+    return f"Job title: {job.get('title') or ''}\nCompany: {job.get('company') or ''}\nTags: {tags}"
 
 
 def main():
@@ -35,19 +35,33 @@ def main():
     parser.add_argument("--previous", default=os.environ.get("RJF_PREVIOUS_PATH", ".cache/previous-jobs.json"))
     parser.add_argument("--out", default=os.environ.get("RJF_PREDICTIONS_PATH", ".cache/role-predictions.json"))
     args = parser.parse_args()
-    jobs = json.loads(Path(args.jobs).read_text())
+    try:
+        jobs = json.loads(Path(args.jobs).read_text())
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        print(f"roles: failed to read jobs from {args.jobs}: {e}", file=sys.stderr)
+        sys.exit(1)
+    if not isinstance(jobs, list):
+        print(f"roles: expected JSON array in {args.jobs}", file=sys.stderr)
+        sys.exit(1)
     previous = {}
     if Path(args.previous).exists():
-        previous = {job["id"]: job for job in json.loads(Path(args.previous).read_text())}
+        try:
+            prev_data = json.loads(Path(args.previous).read_text())
+            if isinstance(prev_data, list):
+                for job in prev_data:
+                    jid = job.get("id")
+                    if isinstance(jid, str):
+                        previous[jid] = job
+        except (json.JSONDecodeError, OSError):
+            pass
 
-    missing = [job for job in jobs if not same_posting(job, previous.get(job["id"]))]
+    missing = [job for job in jobs if not same_posting(job, previous.get(job.get("id")))]
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     if not missing:
         out.write_text("{}")
         print(f"roles: 0 new of {len(jobs)} jobs, model not loaded")
         return
-
     import laya  # deferred: a cache hit must not pay for torch or the model
 
     token = os.environ.get("HF_TOKEN") or None

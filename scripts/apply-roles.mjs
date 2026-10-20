@@ -7,7 +7,11 @@ import { applyRoles } from "./roles.mjs";
 
 const arg = (name, fallback) => {
   const i = process.argv.indexOf(`--${name}`);
-  if (i !== -1) return process.argv[i + 1];
+  if (i !== -1) {
+    const value = process.argv[i + 1];
+    if (!value) throw new Error(`--${name} needs a path`);
+    return value;
+  }
   const envName = `RJF_${name.toUpperCase().replace(/-/g, "_")}_PATH`;
   return process.env[envName] ?? fallback;
 };
@@ -34,7 +38,12 @@ const predictions =
 
 const merged = applyRoles(jobs, previous, predictions);
 const withRole = merged.filter((job) => job.role).length;
-const cached = merged.filter((job) => previous.some((old) => old.id === job.id && old.title === job.title)).length;
+const prevKeys = new Set(
+  (Array.isArray(previous) ? previous : [])
+    .filter((old) => old && typeof old === "object" && typeof old.id === "string" && typeof old.title === "string")
+    .map((old) => `${old.id}\0${old.title}`),
+);
+const cached = merged.filter((job) => prevKeys.has(`${job.id}\0${job.title}`)).length;
 
 await writeFile(jobsPath, JSON.stringify(merged));
 await mkdir(dirname(previousPath), { recursive: true });

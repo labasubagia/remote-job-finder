@@ -194,15 +194,17 @@ export async function init() {
   const res = await fetch("./jobs.json");
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
-  jobs = Array.isArray(data)
-    ? data
-        .filter((j) => j && typeof j === "object")
-        .map((j) => ({
-          ...j,
-          tags: Array.isArray(j.tags) ? j.tags : [],
-          source: typeof j.source === "string" ? j.source : "",
-        }))
-    : [];
+  if (!Array.isArray(data)) {
+    throw new Error("jobs.json must be a JSON array");
+  }
+  jobs = data
+    .filter((j) => j && typeof j === "object")
+    .map((j) => ({
+      ...j,
+      tags: Array.isArray(j.tags) ? j.tags : [],
+      source: typeof j.source === "string" ? j.source : "",
+      location: typeof j.location === "string" ? j.location : "",
+    }));
 
   for (const s of [...new Set(jobs.map((j) => j.source))].sort()) {
     if (!s) continue;
