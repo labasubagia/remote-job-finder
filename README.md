@@ -22,6 +22,7 @@ Zero runtime dependencies. The page ships `index.html` plus two ES modules (`app
 - Timestamps are accepted as epoch seconds, epoch milliseconds, ISO or RFC-822; anything unparseable or out of range becomes `null` and the row is dropped. Excerpts are cut on code-point boundaries. Jobs whose `url` is not `http(s)` are dropped, never published.
 - A source returning **zero** fresh jobs throws `FatalSourceError` and turns the Actions run red — a stale feed fails loudly instead of publishing a silently shrinking board.
 - `site/jobs.json` is generated, gitignored, and only ever deployed as a Pages artifact.
+- **Roles** are classified after fetching, in the Actions runner only: `scripts/classify-roles.py` runs a CPU Laya checkpoint behind the System One contract and keeps an answer only when confidence is at least 0.7 and the answer is not `other`. The role is written as `role` + `roleConfidence`; a job without a confident answer stays role-less and ranks by text. Results are reused by `id` + title + company from the previous run, so the daily job classifies only new postings.
 
 ## Local development
 
@@ -33,6 +34,11 @@ npm test             # node --test
 npm run fmt          # rewrite files with biome
 npm run lint
 python3 -m http.server -d site 8765 --bind 0.0.0.0   # then open http://localhost:8765
+
+# optional: classify roles locally (Python 3.12, ~1 GB model download)
+python3 -m venv .venv && .venv/bin/pip install -r scripts/requirements-roles.txt \
+  --index-url https://download.pytorch.org/whl/cpu --extra-index-url https://pypi.org/simple
+.venv/bin/python scripts/classify-roles.py && node scripts/apply-roles.mjs
 ```
 
 Node >= 22 (CI runs 24). `npm run fetch` hits the real feeds; most of them send no CORS headers, which is exactly why fetching runs on a runner and never in the browser.
@@ -43,10 +49,14 @@ Node >= 22 (CI runs 24). `npm run fetch` hits the real feeds; most of them send 
 | --- | --- |
 | `scripts/fetch-jobs.mjs` | Aggregator: source definitions, retries, normalisation to `{id,title,company,url,source,tags,postedAt,excerpt,location,timezoneOffsets}` |
 | `scripts/timezone.mjs` | Resolves a free-text location to UTC offsets from Node's own ICU data (`Intl`): IANA city names, country names, US states, zone abbreviations. Build-time only, no data files |
+| `scripts/roles.json` | Role taxonomy, model revision and confidence threshold; shared by the classifier, the merge step and the tests |
+| `scripts/roles.mjs` | Pure gating/merge logic: `samePosting`, `pickRole`, `resolveRole`, `applyRoles` |
+| `scripts/classify-roles.py` | Build-time only: predicts roles for postings missing from the previous run |
+| `scripts/apply-roles.mjs` | Merges cached and fresh predictions into `jobs.json`, then saves the merged list for the cache |
 | `site/index.html` | The page: styles and markup; loads the app module through a single `<script type="module">` import |
 | `site/app.mjs` | DOM side: `init()` plus the state, rendering and event wiring |
-| `site/search.mjs` | Pure logic, no DOM: `terms`, `scoreJob`, `matchedTerms`, `rankJobs`, `searchTokens`, `searchScore`, `jobMatches`, `ROLES`, `PROFILE_KEY`, `esc` |
-| `test/*.test.mjs` | `node:test` suites (54 tests) covering the scripts, both modules, and the filter UI through a DOM stub |
+| `site/search.mjs` | Pure logic, no DOM: `terms`, `scoreJob`, `matchedTerms`, `rankJobs`, `searchTokens`, `searchScore`, `jobMatches`, `ROLES`, `PROFILE_KEY`, `esc`; a matching classified role adds a fixed bonus |
+| `test/*.test.mjs` | `node:test` suites (61 tests) covering the scripts, both modules, and the filter UI through a DOM stub |
 | `biome.json` | Formatter + linter config (line width 120, organised imports) |
 
 Ranking and search scoring:
@@ -54,6 +64,7 @@ Ranking and search scoring:
 - Profile terms: aliases fold into a canonical form (`front end` -> `frontend`, `people operations` -> `hr`, `machine learning` -> `ml`, `sre` -> `devops`), stopwords are dropped, then matches are weighted per field: title 3, tags 2, excerpt 1.
 - Search: every query token has to hit some word; fields are weighted title 3, tags 2, company 1, excerpt 1, and the per-token best weights are summed into a relevance score. A word matches on exact, prefix, or one edit away (insert/delete/substitute/transpose) for tokens of 5+ characters.
 - Deliberately not done: abbreviation expansion in the search box (`sre` finds nothing there, while the profile box folds it), negation ("no on-call"), seniority filters, multi-language profiles.
+- Classified roles: a job whose `role` shares a term with the profile gets a fixed 1.5 bonus before the profile-size normalisation. Jobs without a confident role are unaffected.
 
 ## Geography filter
 
@@ -64,7 +75,7 @@ Ranking and search scoring:
 
 ## Automation
 
-- `.github/workflows/jobs.yml` — daily at `17 6 * * *`, on `workflow_dispatch`, and on every push to `main`: tests, fetch, deploy to Pages.
+- `.github/workflows/jobs.yml` — daily at `17 6 * * *`, on `workflow_dispatch`, and on every push to `main`: tests, fetch, role classification, deploy to Pages. The classifier's wheels (uv cache), weights (Hugging Face cache) and previous results are cached; a classifier failure degrades to keyword ranking instead of blocking the deploy.
 - `.github/workflows/ci.yml` — on every pull request: `npm ci`, `npm run fmt:check`, `npm run lint`, `npm test`.
 - `main` is protected, so changes land through pull requests only.
 - Husky hooks: `pre-commit` runs `biome check --staged` (fast, check-only: it never rewrites your index), `pre-push` runs `npm run check`.

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { applyRoles, pickRole, ROLE_CONFIG, samePosting } from "../scripts/roles.mjs";
-import { ROLES } from "../site/search.mjs";
+import { ROLES, rankJobs } from "../site/search.mjs";
 
 const job = (id, title, extra = {}) => ({
   id,
@@ -59,4 +59,12 @@ test("applyRoles re-predicts when the posting changed and drops stale roles", ()
 test("applyRoles leaves uncached jobs without a prediction untouched", () => {
   const [merged] = applyRoles([job("2", "Mystery Role")], []);
   assert.deepEqual(merged, job("2", "Mystery Role"));
+});
+
+test("a confident role outranks an equal job that only matches by text", () => {
+  const ranked = rankJobs(
+    [job("plain", "Marketing Manager"), job("typed", "Marketing Manager", { role: "marketing", roleConfidence: 0.9 })],
+    "marketing",
+  );
+  assert.equal(ranked[0].job.id, "typed");
 });
