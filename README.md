@@ -4,7 +4,7 @@ A remote-only job board with a personalisation box: describe what you want ("bac
 
 Live: <https://labasubagia.github.io/remote-job-finder/>
 
-Zero runtime dependencies. The page ships two files (`index.html`, `profile.mjs`) and one generated JSON; everything ranking-related runs in the browser.
+Zero runtime dependencies. The page ships `index.html` plus two ES modules (`app.mjs`, `search.mjs`) and one generated JSON; everything ranking-related runs in the browser.
 
 ## What visitors get
 
@@ -43,8 +43,9 @@ Node >= 22 (CI runs 24). `npm run fetch` hits the real feeds; most of them send 
 | --- | --- |
 | `scripts/fetch-jobs.mjs` | Aggregator: source definitions, retries, normalisation to `{id,title,company,url,source,tags,postedAt,excerpt,location,timezoneOffsets}` |
 | `scripts/timezone.mjs` | Resolves a free-text location to UTC offsets from Node's own ICU data (`Intl`): IANA city names, country names, US states, zone abbreviations. Build-time only, no data files |
-| `site/index.html` | The page: styles, markup, and the module script that wires state, rendering and events |
-| `site/profile.mjs` | Pure logic, no DOM: `terms`, `scoreJob`, `matchedTerms`, `rankJobs`, `searchTokens`, `searchScore`, `jobMatches` |
+| `site/index.html` | The page: styles and markup; loads the app module through a single `<script type="module">` import |
+| `site/app.mjs` | DOM side: `init()` plus the state, rendering and event wiring |
+| `site/search.mjs` | Pure logic, no DOM: `terms`, `scoreJob`, `matchedTerms`, `rankJobs`, `searchTokens`, `searchScore`, `jobMatches`, `ROLES`, `PROFILE_KEY`, `esc` |
 | `test/*.test.mjs` | `node:test` suites (54 tests) covering the scripts, both modules, and the filter UI through a DOM stub |
 | `biome.json` | Formatter + linter config (line width 120, organised imports) |
 
