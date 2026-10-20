@@ -26,9 +26,7 @@ const REGION_BANDS = {
   emea: [-1, 4],
   apac: [5, 12],
 };
-
-const WORLDWIDE_RE = /worldwide|anywhere|global/;
-
+const WORLDWIDE_RE = /\b(worldwide|anywhere|global)\b/; // must match scripts/timezone.mjs
 // Offsets are resolved at build time (scripts/timezone.mjs) from the IANA tz
 // database, so the browser never maps a place name to a region.
 const offsetsOf = (job) => (job.timezoneOffsets?.length ? job.timezoneOffsets : null);
