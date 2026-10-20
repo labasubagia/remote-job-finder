@@ -80,6 +80,22 @@ export function terms(text) {
   );
 }
 
+// Same order as ROLES; test/roles.test.mjs keeps this and scripts/roles.json honest.
+const ROLE_IDS = [
+  "software-engineer",
+  "data-scientist",
+  "product-designer",
+  "marketing",
+  "customer-support",
+  "sales",
+  "hr-recruiter",
+  "devops-sre",
+  "machine-learning",
+  "engineering-manager",
+];
+const ROLE_TERMS = new Map(ROLES.map((label, i) => [ROLE_IDS[i], terms(label)]));
+const ROLE_BONUS = 1.5;
+
 // Weight per field: a hit in the title matters most, a hit in the excerpt least.
 const FIELDS = [
   [3, (j) => j.title],
@@ -101,6 +117,8 @@ export function scoreJob(profileTerms, job) {
   if (!profileTerms.size) return 0;
   let score = 0;
   for (const [weight, set] of fieldSets(job)) for (const t of profileTerms) if (set.has(t)) score += weight;
+  const roleTerms = job.role && ROLE_TERMS.get(job.role);
+  if (roleTerms && [...profileTerms].some((t) => roleTerms.has(t))) score += ROLE_BONUS;
   return score / profileTerms.size;
 }
 
