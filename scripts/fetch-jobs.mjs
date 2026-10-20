@@ -5,6 +5,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { createLocationResolver } from "./timezone.mjs";
 
 const UA = "remote-job-finder/0.1 (+https://github.com/remote-job-finder)";
 const ATTEMPTS = 3;
@@ -397,8 +398,17 @@ export async function collectJobs({
       return filterFresh(linked, cutoff, name, parsed.length, log, maxAgeDays);
     }),
   );
+  // Resolve every free-text location into UTC offsets while we have Node's ICU
+  // data. The published file then carries numbers, and the browser only compares
+  // them against the reader's clock. A location the tz database cannot place
+  // leaves any offsets the source supplied untouched (null = unknown).
+  const resolveLocation = createLocationResolver({ now: new Date(now) });
+  const jobs = results.flat().map((job) => ({
+    ...job,
+    timezoneOffsets: resolveLocation(job.location) ?? job.timezoneOffsets ?? null,
+  }));
 
-  return deduplicateAndSort(results.flat());
+  return deduplicateAndSort(jobs);
 }
 
 async function main(argv) {

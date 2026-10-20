@@ -41,28 +41,29 @@ const job = (id, location, timezoneOffsets) => ({
   timezoneOffsets,
 });
 
-// Two labels per region plus the awkward cases: global, unlabelled, multi-region,
-// and Himalayas rows whose offset list contradicts their location.
+// Post-build shape: every location is already resolved to UTC offsets by
+// scripts/timezone.mjs, so these fixtures use real values (Copenhagen +2,
+// Vancouver -7) rather than names the browser would have to interpret.
 const FIXTURE = [
-  job("jakarta", "Indonesia", null),
-  job("india", "India", null),
-  job("tokyo", "Japan", null),
-  job("sydney", "Australia", null),
-  job("berlin", "Berlin", null),
-  job("uk", "United Kingdom", null),
-  job("us", "United States", null),
-  job("brazil", "Brazil", null),
+  job("jakarta", "Indonesia", [7]),
+  job("india", "India", [5.5]),
+  job("tokyo", "Japan", [9]),
+  job("sydney", "Australia", [10, 11]),
+  job("berlin", "Berlin", [2]),
+  job("uk", "United Kingdom", [1]),
+  job("us", "United States", [-10, -9, -8, -7, -6, -5, -4]),
+  job("brazil", "Brazil", [-5, -4, -3]),
+  job("copenhagen", "Copenhagen", [2]),
+  job("vancouver", "Vancouver", [-7]),
   job("worldwide", "Worldwide", null),
   job("unlabelled", null, null),
-  job("multi", "Europe, LATAM, APAC, the U.S., Canada", null),
+  job("multi", "Europe, LATAM, APAC, the U.S., Canada", [-7, -6, -5, -4, -3, 0, 1, 2, 3, 5, 6, 7, 8, 9, 10]),
   job("offset-apac", "Asia", [7, 8]),
   job("offset-eu", "Germany", [1, 2]),
-  job("offset-us", "United States", [-10, -9, -8, -7, -6, -5]),
-  // Himalayas closes US-only lists with a UTC+14 sentinel; it must not read as "Asia-friendly".
-  job("offset-us-sentinel", "United States", [-10, -9, -8, -7, -6, -5, 14]),
+  job("offset-us", "United States", [-10, -9, -8, -7, -6, -5, -4]),
 ];
 
-const ALWAYS = ["multi", "unlabelled", "worldwide"]; // global or unknowable, kept everywhere
+const ALWAYS = ["unlabelled", "worldwide"]; // no location or a global one: kept everywhere
 
 const REAL_DATE = Date;
 const restoreDate = () => {
@@ -103,75 +104,138 @@ const mount = async ({ geo = "", tolerance = "", utc = 7 } = {}) => {
 // <a href="https://example.com/<id>" ...
 const ids = (html) => [...html.matchAll(/example\.com\/([^"]+)"/g)].map((m) => m[1]);
 
-// Keep-lists spelled out per user location instead of derived from the region table,
-// so a wrong band fails here rather than agreeing with itself.
+// Keep-lists spelled out per user location instead of derived from the bands, so a
+// wrong band fails here rather than agreeing with itself.
 const LOCATIONS = [
   {
     name: "Jakarta UTC+7",
     utc: 7,
-    keep: ["jakarta", "india", "tokyo", "sydney", "offset-apac"],
-    drop: ["berlin", "uk", "us", "brazil", "offset-eu", "offset-us", "offset-us-sentinel"],
+    keep: ["jakarta", "india", "tokyo", "multi", "offset-apac"],
+    drop: ["berlin", "uk", "us", "brazil", "copenhagen", "vancouver", "offset-eu", "offset-us"],
   },
   {
     name: "Mumbai UTC+5:30 (fractional offset)",
     utc: 5.5,
-    keep: ["jakarta", "india", "tokyo", "sydney", "offset-apac"],
-    drop: ["berlin", "uk", "us", "brazil", "offset-eu", "offset-us", "offset-us-sentinel"],
+    // Tokyo is 3.5h out, so a 2h window excludes it.
+    keep: ["jakarta", "india", "multi", "offset-apac"],
+    drop: ["tokyo", "sydney", "berlin", "uk", "us", "brazil", "copenhagen", "vancouver", "offset-eu", "offset-us"],
   },
   {
     name: "Tokyo UTC+9",
     utc: 9,
-    keep: ["jakarta", "india", "tokyo", "sydney", "offset-apac"],
-    drop: ["berlin", "uk", "us", "brazil", "offset-eu", "offset-us", "offset-us-sentinel"],
+    keep: ["jakarta", "multi", "tokyo", "sydney", "offset-apac"],
+    drop: ["india", "berlin", "uk", "us", "brazil", "copenhagen", "vancouver", "offset-eu", "offset-us"],
   },
   {
     name: "Sydney UTC+10",
     utc: 10,
-    keep: ["jakarta", "india", "tokyo", "sydney", "offset-apac"],
-    drop: ["berlin", "uk", "us", "brazil", "offset-eu", "offset-us", "offset-us-sentinel"],
+    keep: ["multi", "tokyo", "sydney", "offset-apac"],
+    drop: ["jakarta", "india", "berlin", "uk", "us", "brazil", "copenhagen", "vancouver", "offset-eu", "offset-us"],
   },
   {
     name: "Auckland UTC+12",
     utc: 12,
-    // UTC+12 is 5h from the APAC band's +7..+8 offsets, so those rows go too.
-    keep: ["jakarta", "india", "tokyo", "sydney"],
-    drop: ["berlin", "uk", "us", "brazil", "offset-eu", "offset-us", "offset-us-sentinel", "offset-apac"],
+    // Sydney is the only APAC row within 2h; the +7/+9 rows are 3-5h out.
+    keep: ["multi", "sydney"],
+    drop: [
+      "jakarta",
+      "india",
+      "tokyo",
+      "offset-apac",
+      "berlin",
+      "uk",
+      "us",
+      "brazil",
+      "copenhagen",
+      "vancouver",
+      "offset-eu",
+      "offset-us",
+    ],
   },
   {
     name: "London UTC+0",
     utc: 0,
-    keep: ["berlin", "uk", "offset-eu"],
-    drop: ["jakarta", "india", "tokyo", "sydney", "us", "brazil", "offset-apac", "offset-us", "offset-us-sentinel"],
+    keep: ["berlin", "copenhagen", "multi", "offset-eu", "uk"],
+    drop: ["jakarta", "india", "tokyo", "sydney", "us", "brazil", "vancouver", "offset-apac", "offset-us"],
   },
   {
     name: "Berlin UTC+2",
     utc: 2,
-    keep: ["berlin", "uk", "offset-eu"],
-    drop: ["jakarta", "india", "tokyo", "sydney", "us", "brazil", "offset-apac", "offset-us", "offset-us-sentinel"],
+    keep: ["berlin", "copenhagen", "multi", "offset-eu", "uk"],
+    drop: ["jakarta", "india", "tokyo", "sydney", "us", "brazil", "vancouver", "offset-apac", "offset-us"],
   },
   {
     name: "New York UTC-4",
     utc: -4,
-    keep: ["us", "brazil", "offset-us", "offset-us-sentinel"],
-    drop: ["jakarta", "india", "tokyo", "sydney", "berlin", "uk", "offset-eu", "offset-apac"],
+    keep: ["brazil", "multi", "offset-us", "us"],
+    drop: [
+      "jakarta",
+      "india",
+      "tokyo",
+      "sydney",
+      "berlin",
+      "uk",
+      "copenhagen",
+      "vancouver",
+      "offset-eu",
+      "offset-apac",
+    ],
   },
   {
     name: "Sao Paulo UTC-3",
     utc: -3,
-    keep: ["us", "brazil", "offset-us", "offset-us-sentinel"],
-    drop: ["jakarta", "india", "tokyo", "sydney", "berlin", "uk", "offset-eu", "offset-apac"],
+    keep: ["brazil", "multi", "offset-us", "us"],
+    drop: [
+      "jakarta",
+      "india",
+      "tokyo",
+      "sydney",
+      "berlin",
+      "uk",
+      "copenhagen",
+      "vancouver",
+      "offset-eu",
+      "offset-apac",
+    ],
   },
   {
     name: "Honolulu UTC-10",
     utc: -10,
-    keep: ["us", "brazil", "offset-us", "offset-us-sentinel"],
-    drop: ["jakarta", "india", "tokyo", "sydney", "berlin", "uk", "offset-eu", "offset-apac"],
+    // Vancouver (-7) is 3h out; only the widest US list still overlaps.
+    keep: ["us", "offset-us"],
+    drop: [
+      "jakarta",
+      "india",
+      "tokyo",
+      "sydney",
+      "berlin",
+      "uk",
+      "brazil",
+      "copenhagen",
+      "vancouver",
+      "offset-eu",
+      "offset-apac",
+      "multi",
+    ],
   },
   {
     name: "Pago Pago UTC-11",
     utc: -11,
-    keep: ["us", "brazil", "offset-us", "offset-us-sentinel"],
-    drop: ["jakarta", "india", "tokyo", "sydney", "berlin", "uk", "offset-eu", "offset-apac"],
+    keep: ["us", "offset-us"],
+    drop: [
+      "jakarta",
+      "india",
+      "tokyo",
+      "sydney",
+      "berlin",
+      "uk",
+      "brazil",
+      "copenhagen",
+      "vancouver",
+      "offset-eu",
+      "offset-apac",
+      "multi",
+    ],
   },
 ];
 
@@ -203,22 +267,24 @@ test("the boundary is inclusive: Berlin leaves at 4h and returns at 5h", async (
   }
 });
 
-test("8h still keeps the Americas out, even with a UTC+14 sentinel offset", async () => {
-  const { shown } = await mount({ geo: "my-tz", tolerance: "8", utc: 7 });
+test("a 12h tolerance still cannot reach the other side of the planet", async () => {
+  const { shown } = await mount({ geo: "my-tz", tolerance: "12", utc: 7 });
   try {
     const list = shown();
-    assert.ok(list.includes("berlin"), `expected Berlin at 8h, got ${list}`);
-    assert.ok(!list.includes("us"), `expected USA hidden at 8h, got ${list}`);
-    assert.ok(!list.includes("offset-us-sentinel"), `sentinel 14 leaked USA at 8h: ${list}`);
+    // +7 minus 12h is UTC-5, so Brazil is in and Vancouver (-7) is not.
+    assert.ok(list.includes("brazil"));
+    assert.ok(!list.includes("vancouver"), `Vancouver is 14h from Jakarta: ${list}`);
+    assert.ok(list.includes("us"), `the US east coast is 11h from Jakarta: ${list}`);
   } finally {
     restoreDate();
   }
 });
 
-test("12h reaches everything", async () => {
-  const { shown } = await mount({ geo: "my-tz", tolerance: "12", utc: 7 });
+test("a job with no resolvable location is kept rather than guessed away", async () => {
+  const { shown } = await mount({ geo: "my-tz", tolerance: "0", utc: 7 });
   try {
-    assert.equal(shown().length, FIXTURE.length, `expected all jobs at 12h, got ${shown()}`);
+    assert.ok(shown().includes("unlabelled"));
+    assert.ok(shown().includes("worldwide"));
   } finally {
     restoreDate();
   }
@@ -241,10 +307,10 @@ test("regional dropdowns agree with the same regions", async () => {
   // Regional picks hide unlabelled and worldwide rows; only multi-region labels survive.
   const { get, shown } = await mount({ geo: "americas", utc: 7 });
   try {
-    assert.deepEqual(shown(), ["brazil", "multi", "offset-us", "offset-us-sentinel", "us"]);
+    assert.deepEqual(shown(), ["brazil", "multi", "offset-us", "us", "vancouver"]);
     get("geo").value = "emea";
     get("geo").fire("change");
-    assert.deepEqual(shown(), ["berlin", "multi", "offset-eu", "uk"]);
+    assert.deepEqual(shown(), ["berlin", "copenhagen", "multi", "offset-eu", "uk"]);
     get("geo").value = "apac";
     get("geo").fire("change");
     assert.deepEqual(shown(), ["india", "jakarta", "multi", "offset-apac", "sydney", "tokyo"]);
