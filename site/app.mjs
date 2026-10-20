@@ -9,6 +9,31 @@ const ago = (iso) => {
   return RTF.format(-Math.floor(Math.max(0, Date.now() - t) / 864e5), "day");
 };
 
+// Offsets are UTC hours. Ranges include the outliers people actually live in
+// (UTC-10 Hawaii, UTC+14 Kiritimati) rather than the nominal 24.
+// ponytail: word lists, not geocoding. Covers every location value in the
+// current feed; upgrade to a gazetteer if host labels drift to unknown cities.
+const REGIONS = {
+  americas: {
+    min: -10,
+    max: -3,
+    re: /united states|\busa\b|\bu\.s\.|canada|mexico|brazil|argentina|chile|colombia|peru|latin|\blatam\b|america/,
+  },
+  emea: {
+    min: -1,
+    max: 4,
+    re: /europe|\bemea\b|\buk\b|united kingdom|germany|france|spain|italy|netherlands|poland|sweden|norway|denmark|finland|ireland|portugal|belgium|austria|switzerland|greece|africa|middle east|\buae\b|israel|cyprus|ukraine|bulgaria|romania|serbia|\bcet\b|berlin|z[üu]rich|hanover|paris|london|bern|amsterdam|munich|madrid|barcelona|dublin|lisbon|stockholm|vienna|warsaw|prague/,
+  },
+  apac: {
+    min: 5,
+    max: 12,
+    re: /australia|new zealand|singapore|japan|korea|china|india|hong kong|taiwan|vietnam|thailand|indonesia|philippines|malaysia|bangladesh|\bapac\b|asia|pacific/,
+  },
+};
+
+const WORLDWIDE_RE = /worldwide|anywhere|global/;
+const regionsIn = (loc) => Object.keys(REGIONS).filter((k) => REGIONS[k].re.test(loc));
+
 let jobs = [];
 
 function createElements() {
@@ -50,48 +75,38 @@ function render({ p, q, src, geo, tzTolerance, sort, chips, list, meta }) {
   const geoPick = geo.value;
   const profile = p.value.trim();
 
-  // Detect user's timezone offset in hours (e.g., -5 for EST, 2 for EET)
+  // Detect user's timezone offset in hours (e.g., -5 for EST, +7 for WIB)
   const userOffset = new Date().getTimezoneOffset() / -60;
-  const tolerance = geoPick === "my-tz" ? Math.max(0, Number(tzTolerance?.value ?? 2)) : 2;
+  // parseInt("") is NaN, so an emptied field falls back to the default instead of 0
+  const tolInput = Number.parseInt(tzTolerance?.value ?? "", 10);
+  const tolerance = geoPick === "my-tz" && !Number.isNaN(tolInput) ? Math.min(12, Math.max(0, tolInput)) : 2;
 
   // Show/hide tolerance input
   tzTolerance.style.display = geoPick === "my-tz" ? "inline-block" : "none";
 
   function geoMatches(job) {
     if (!geoPick) return true;
-    if (geoPick === "worldwide")
-      return (
-        job.location?.toLowerCase().includes("worldwide") ||
-        job.location?.toLowerCase().includes("anywhere") ||
-        job.location?.toLowerCase().includes("global")
-      );
-    if (geoPick === "my-tz") {
-      if (!job.timezoneOffsets?.length) return true; // no data = don't filter out
-      return job.timezoneOffsets.some((off) => Math.abs(off - userOffset) <= tolerance);
-    }
-    // Regional filters: map region to offset ranges
-    const ranges = {
-      americas: [-10, -3],
-      emea: [-1, 4],
-      apac: [5, 12],
-    };
-    const [min, max] = ranges[geoPick] ?? [-12, 14];
-    if (job.timezoneOffsets?.length) {
-      return job.timezoneOffsets.some((off) => off >= min && off <= max);
-    }
-    // Fallback: match location string for region names
     const loc = (job.location ?? "").toLowerCase();
-    if (geoPick === "americas")
-      return /united states|usa|canada|mexico|brazil|argentina|chile|colombia|peru|latin|america/.test(loc);
-    if (geoPick === "emea")
-      return /europe|uk|germany|france|spain|italy|netherlands|poland|sweden|norway|denmark|finland|ireland|portugal|belgium|austria|switzerland|greece|africa|middle east|uae|israel|south africa/.test(
-        loc,
-      );
-    if (geoPick === "apac")
-      return /australia|new zealand|singapore|japan|korea|china|india|hong kong|taiwan|vietnam|thailand|indonesia|philippines|malaysia|asia|pacific/.test(
-        loc,
-      );
-    return true;
+    // Only Himalayas publishes offsets; 254/274 jobs carry just a location string.
+    const offsets = job.timezoneOffsets?.length ? job.timezoneOffsets : null;
+
+    if (geoPick === "my-tz") {
+      // Unlabelled or global: cannot prove a mismatch, so keep it.
+      if (!loc || WORLDWIDE_RE.test(loc)) return true;
+      if (offsets) return offsets.some((off) => Math.abs(off - userOffset) <= tolerance);
+      const hit = regionsIn(loc);
+      if (!hit.length) return true; // ambiguous wording such as "EMEA-agnostic"
+      const lo = userOffset - tolerance;
+      const hi = userOffset + tolerance;
+      // Keep when the job's plausible offset band overlaps the user's window.
+      return hit.some((r) => REGIONS[r].min <= hi && REGIONS[r].max >= lo);
+    }
+
+    if (geoPick === "worldwide") return WORLDWIDE_RE.test(loc);
+    const region = REGIONS[geoPick];
+    if (!region) return true;
+    if (offsets) return offsets.some((off) => off >= region.min && off <= region.max);
+    return loc !== "" && region.re.test(loc);
   }
 
   let shown = jobs.filter((j) => (!pick || j.source === pick) && geoMatches(j) && jobMatches(needle, j));
