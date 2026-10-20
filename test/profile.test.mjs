@@ -120,6 +120,20 @@ test("fuzzy matching does not invent near-misses between unrelated words", () =>
   assert.ok(!jobMatches("great", job("g", "Seat Operations")), "'great' must not match 'seat'");
   assert.ok(jobMatches("enigneer", job("e", "Backend Engineer")), "real transposition still matches");
 });
+test("fuzzy matching only activates for tokens of 5+ chars (MIN_FUZZY=5)", () => {
+  // 4 chars: prefix works, but no fuzzy (edit distance)
+  assert.ok(jobMatches("soft", job("1", "Software Engineer")), "prefix match works for 4 chars");
+  assert.ok(!jobMatches("sotf", job("1", "Software Engineer")), "transposition does NOT match for 4 chars");
+  assert.ok(jobMatches("sof", job("1", "Software Engineer")), "prefix match works for 3 chars");
+
+  // 5 chars: fuzzy activates (edit distance 1) in addition to prefix
+  // Use "engine" (6 chars) as target
+  const engJob = job("eng", "Backend Engine");
+  assert.ok(jobMatches("engin", engJob), "prefix match works for 5 chars");
+  assert.ok(jobMatches("engne", engJob), "insertion matches for 5 chars (engine -> engne)");
+  assert.ok(jobMatches("engie", engJob), "substitution matches for 5 chars (engine -> engie)");
+  assert.ok(!jobMatches("engnir", engJob), "2 edits still fails for 5 chars");
+});
 
 test("search never matches an inner substring of a word", () => {
   const talky = job("t", "Account Manager", [], "Managing interaction with clients.");
