@@ -1,0 +1,23 @@
+{
+  "version": 1,
+  "threshold": 0.7,
+  "model": "convaiinnovations/laya",
+  "revision": "7b928d828b7b0e022f929d9bd2e44165aa270148",
+  "roles": [
+    { "id": "software-engineer", "label": "Software engineer" },
+    { "id": "data-scientist", "label": "Data scientist" },
+    { "id": "product-designer", "label": "Product designer" },
+    { "id": "marketing", "label": "Marketing" },
+    { "id": "customer-support", "label": "Customer support" },
+    { "id": "sales", "label": "Sales" },
+    { "id": "hr-recruiter", "label": "HR / recruiter" },
+    { "id": "devops-sre", "label": "DevOps / SRE" },
+    { "id": "machine-learning", "label": "Machine learning" },
+    { "id": "engineering-manager", "label": "Engineering manager" },
+    {
+      "id": "other",
+      "label": "Other",
+      "criteria": "none of these: healthcare, legal, finance, accounting, education, project or program management, writing, or any other profession"
+    }
+  ]
+}
