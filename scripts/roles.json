@@ -59,5 +59,26 @@
       "label": "Other",
       "criteria": "none of these: healthcare, legal, finance, accounting, education, project or program management, writing, or any other profession"
     }
+  ],
+  "groups": [
+    ["engineer", "developer", "programmer", "dev"],
+    ["frontend", "front end", "react", "vue", "ui"],
+    ["backend", "back end", "server", "api"],
+    ["fullstack", "full stack"],
+    ["mobile", "ios", "android", "react native"],
+    ["ml", "machine learning", "deep learning"],
+    ["ai", "artificial intelligence", "llm"],
+    ["data", "data science", "data scientist", "analytics", "analyst"],
+    ["devops", "sre", "infra", "infrastructure", "platform", "cloud"],
+    ["security", "infosec", "appsec"],
+    ["qa", "quality assurance", "tester", "testing"],
+    ["designer", "design", "ux", "graphic"],
+    ["pm", "product manager", "product owner", "project manager"],
+    ["manager", "lead", "head", "director", "vp"],
+    ["hr", "people operations", "recruiter", "recruiting", "talent"],
+    ["support", "customer support", "customer success", "helpdesk"],
+    ["marketing", "growth", "seo", "content"],
+    ["finance", "accounting", "accountant"],
+    ["writer", "copywriter", "editor"]
   ]
 }
