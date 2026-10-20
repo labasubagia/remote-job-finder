@@ -20,9 +20,10 @@ const REGIONS = {
     re: /united states|\busa\b|\bu\.s\.|canada|mexico|brazil|argentina|chile|colombia|peru|latin|\blatam\b|america/,
   },
   emea: {
-    // Settled EU/UK is UTC+0..+2; UTC+3/+4 (Moscow, Dubai) would drag the band
-    // two hours closer to Asia than the labels actually imply.
-    min: -1,
+    // Settled EU/UK is UTC+0..+2. A lower floor (Azores, -1) let Europe bleed
+    // into a Sao Paulo user's +/-2 window; +3/+4 (Moscow, Dubai) pulled it
+    // forward for Asia.
+    min: 0,
     max: 2,
     re: /europe|\bemea\b|\buk\b|united kingdom|germany|france|spain|italy|netherlands|poland|sweden|norway|denmark|finland|ireland|portugal|belgium|austria|switzerland|greece|africa|middle east|\buae\b|israel|cyprus|ukraine|bulgaria|romania|serbia|\bcet\b|berlin|z[üu]rich|hanover|paris|london|bern|amsterdam|munich|madrid|barcelona|dublin|lisbon|stockholm|vienna|warsaw|prague/,
   },
