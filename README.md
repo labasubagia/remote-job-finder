@@ -17,7 +17,7 @@ Zero runtime dependencies. The page ships `index.html` plus two ES modules (`app
 - **Relative timestamps** — e.g. "3 days ago" using `Intl.RelativeTimeFormat`.
 ## Data
 
-`scripts/fetch-jobs.mjs` aggregates 10 public feeds: remoteok, remotive, arbeitnow, himalayas, wwr, jobicy, workingnomads, nodesk, jobspresso, dribbble.
+`scripts/fetch-jobs.mjs` aggregates multiple public feeds.
 
 - 30-day freshness window, excerpt truncated to 200 chars, at most 8 tags per job, deduplicated by id, sorted newest first.
 - 3 attempts with a 20 s timeout per request; retryable HTTP statuses (408, 425, 429, 5xx) are retried, HTML entities (named, decimal and hex) and CDATA are decoded.
