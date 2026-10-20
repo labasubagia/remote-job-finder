@@ -4,16 +4,56 @@
   "model": "convaiinnovations/laya",
   "revision": "7b928d828b7b0e022f929d9bd2e44165aa270148",
   "roles": [
-    { "id": "software-engineer", "label": "Software engineer" },
-    { "id": "data-scientist", "label": "Data scientist" },
-    { "id": "product-designer", "label": "Product designer" },
-    { "id": "marketing", "label": "Marketing" },
-    { "id": "customer-support", "label": "Customer support" },
-    { "id": "sales", "label": "Sales" },
-    { "id": "hr-recruiter", "label": "HR / recruiter" },
-    { "id": "devops-sre", "label": "DevOps / SRE" },
-    { "id": "machine-learning", "label": "Machine learning" },
-    { "id": "engineering-manager", "label": "Engineering manager" },
+    {
+      "id": "software-engineer",
+      "label": "Software engineer",
+      "aliases": ["software", "swe", "developer", "engineer"]
+    },
+    {
+      "id": "data-scientist",
+      "label": "Data scientist",
+      "aliases": ["data science", "data analyst", "data"]
+    },
+    {
+      "id": "product-designer",
+      "label": "Product designer",
+      "aliases": ["product design", "designer", "ux", "ui"]
+    },
+    {
+      "id": "marketing",
+      "label": "Marketing",
+      "aliases": ["growth", "seo"]
+    },
+    {
+      "id": "customer-support",
+      "label": "Customer support",
+      "aliases": ["support", "helpdesk", "customer success"]
+    },
+    {
+      "id": "sales",
+      "label": "Sales",
+      "aliases": ["bdr", "sdr", "account executive"]
+    },
+    {
+      "id": "hr-recruiter",
+      "label": "HR / recruiter",
+      "aliases": ["hr", "recruiter", "recruiting", "talent", "people operations", "people ops"]
+    },
+    {
+      "id": "devops-sre",
+      "label": "DevOps / SRE",
+      "aliases": ["devops", "sre", "infrastructure", "platform", "cloud"]
+    },
+    {
+      "id": "machine-learning",
+      "label": "Machine learning",
+      "aliases": ["machine learning", "ml", "ai", "artificial intelligence"]
+    },
+    {
+      "id": "engineering-manager",
+      "label": "Engineering manager",
+      "aliases": ["engineering manager", "eng manager", "em", "tech lead manager"]
+    },
     {
       "id": "other",
       "label": "Other",

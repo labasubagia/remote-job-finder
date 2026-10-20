@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 import { applyRoles, pickRole, ROLE_CONFIG, samePosting } from "../scripts/roles.mjs";
+import { ROLE_EXTRA_ALIASES as GEN_EXTRA, ROLE_IDS as GEN_IDS, ROLES as GEN_ROLES } from "../site/roles.mjs";
 import { ROLES, rankJobs } from "../site/search.mjs";
 
 const job = (id, title, extra = {}) => ({
@@ -11,6 +13,19 @@ const job = (id, title, extra = {}) => ({
   excerpt: "",
   postedAt: "2026-10-01T00:00:00Z",
   ...extra,
+});
+
+test("generated roles module stays in sync with scripts/roles.json", async () => {
+  const json = JSON.parse(await readFile("scripts/roles.json", "utf8"));
+  const sourceRoles = json.roles.filter((r) => r.id !== "other");
+  const srcLabels = sourceRoles.map((r) => r.label);
+  const srcIds = sourceRoles.map((r) => r.id);
+  const srcExtra = sourceRoles.map((r) => [r.id, r.aliases ?? []]);
+
+  assert.deepEqual(GEN_ROLES, srcLabels);
+  assert.deepEqual(GEN_IDS, srcIds);
+  const normalize = (arr) => arr.map(([id, al]) => [id, al]);
+  assert.deepEqual(normalize(GEN_EXTRA), normalize(srcExtra));
 });
 
 test("taxonomy stays in step with the profile chips", () => {

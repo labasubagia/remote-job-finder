@@ -11,9 +11,10 @@
     "fmt": "biome format --write .",
     "fmt:check": "biome format .",
     "lint": "biome lint .",
-    "test": "node --test 'test/**/*.test.mjs'",
+    "gen:roles": "node scripts/generate-roles.mjs",
+    "pretest": "npm run gen:roles",
     "check": "biome check . && npm test",
-    "prepare": "husky"
+    "test": "node --test 'test/**/*.test.mjs'"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.15",
