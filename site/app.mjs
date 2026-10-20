@@ -1,14 +1,11 @@
 import {
   esc,
   jobMatches,
-  labelKey,
   matchedTerms,
   PROFILE_KEY,
-  profileMatcher,
-  ROLE_BY_LABEL,
-  ROLE_IDS,
   ROLES,
   rankJobs,
+  roleMatcher,
   searchScore,
   terms,
 } from "./search.mjs";
@@ -36,9 +33,9 @@ const WORLDWIDE_RE = /worldwide|anywhere|global/;
 // database, so the browser never maps a place name to a region.
 const offsetsOf = (job) => (job.timezoneOffsets?.length ? job.timezoneOffsets : null);
 let jobs = [];
+const selectedRoles = new Set();
 
 function createElements() {
-  const p = document.getElementById("p");
   const q = document.getElementById("q");
   const src = document.getElementById("src");
   const geo = document.getElementById("geo");
@@ -47,42 +44,51 @@ function createElements() {
   const chips = document.getElementById("chips");
   const list = document.getElementById("list");
   const meta = document.getElementById("meta");
-  return { p, q, src, geo, tzTolerance, sort, chips, list, meta };
+  return { q, src, geo, tzTolerance, sort, chips, list, meta };
 }
 
-function save(value) {
+function save() {
   try {
-    localStorage.setItem(PROFILE_KEY, value);
+    localStorage.setItem(PROFILE_KEY, JSON.stringify([...selectedRoles]));
   } catch {
     // private mode or storage disabled: the page still works, the profile just is not remembered
   }
 }
 
-function picked(p) {
-  return p.value
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
+function loadRoles() {
+  selectedRoles.clear();
+  try {
+    const raw = localStorage.getItem(PROFILE_KEY);
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        for (const item of parsed) if (ROLES.includes(item)) selectedRoles.add(item);
+        return;
+      }
+    } catch {
+      // not JSON: legacy comma-separated string
+    }
+    for (const item of raw.split(",")) {
+      const trimmed = item.trim();
+      const match = ROLES.find((r) => r.toLowerCase() === trimmed.toLowerCase());
+      if (match) selectedRoles.add(match);
+    }
+  } catch {
+    // private mode or storage disabled
+  }
 }
 
-function syncChips(p, chips) {
-  const activeRoles = new Set();
-  for (const s of picked(p)) {
-    const id = ROLE_BY_LABEL.get(labelKey(s));
-    if (id) activeRoles.add(id);
-  }
-  for (let i = 0; i < chips.children.length; i++) {
-    const b = chips.children[i];
-    const roleId = ROLE_IDS[i];
-    b.setAttribute("aria-pressed", String(activeRoles.has(roleId)));
+function syncChips(chips) {
+  for (const b of chips.children) {
+    b.setAttribute("aria-pressed", String(selectedRoles.has(b.textContent)));
   }
 }
 // biome-ignore lint/correctness/noUnusedFunctionParameters: used via .value
-function render({ p, q, src, geo, tzTolerance, sort, chips, list, meta }) {
+function render({ q, src, geo, tzTolerance, sort, chips, list, meta }) {
   const needle = q.value.trim();
   const pick = src.value;
   const geoPick = geo.value;
-  const profile = p.value.trim();
 
   // Detect user's timezone offset in hours (e.g., -5 for EST, +7 for WIB)
   const userOffset = new Date().getTimezoneOffset() / -60;
@@ -112,32 +118,33 @@ function render({ p, q, src, geo, tzTolerance, sort, chips, list, meta }) {
     return offsets.some((off) => off >= band[0] && off <= band[1]);
   }
 
-  const matchesProfile = profileMatcher(profile);
+  const matchesRole = roleMatcher(selectedRoles);
   let shown = jobs.filter(
-    (j) => (!pick || j.source === pick) && geoMatches(j) && jobMatches(needle, j) && matchesProfile(j),
+    (j) => (!pick || j.source === pick) && geoMatches(j) && jobMatches(needle, j) && matchesRole(j),
   );
   const newest = (a, b) => Date.parse(b.postedAt) - Date.parse(a.postedAt);
-  const ranked = !needle && sort.value === "best" && Boolean(profile);
+  const ranked = !needle && sort.value === "best" && selectedRoles.size > 0;
   if (needle && sort.value === "new") {
     shown.sort(newest);
   } else if (needle) {
     shown.sort((a, b) => searchScore(needle, b) - searchScore(needle, a) || newest(a, b));
   } else if (ranked) {
-    const wanted = terms(profile);
-    shown = rankJobs(shown, profile).map(({ job }) => ({ ...job, why: matchedTerms(wanted, job) }));
+    const roleText = [...selectedRoles].join(", ");
+    const wanted = terms(roleText);
+    shown = rankJobs(shown, roleText).map(({ job }) => ({ ...job, why: matchedTerms(wanted, job) }));
   } else {
     shown.sort(newest);
   }
   const clip = (s) => (s.length > 32 ? `${s.slice(0, 32)}…` : s);
+  const activeRoleList = [...selectedRoles];
+  const roleText = activeRoleList.length ? activeRoleList.join(", ") : "";
   const suffix = needle
     ? ` · ${sort.value === "new" ? "newest" : "best"} matches for "${clip(needle)}"`
-    : ranked
-      ? ` · ranked for "${clip(profile)}"`
-      : profile
-        ? ` · filtered by "${clip(profile)}"`
-        : geoPick
-          ? ` · filtered by ${geo.options[geo.selectedIndex].text}`
-          : "";
+    : roleText
+      ? ` · filtered by ${clip(roleText)}`
+      : geoPick
+        ? ` · filtered by ${geo.options[geo.selectedIndex].text}`
+        : "";
   meta.textContent = `${shown.length} of ${jobs.length} remote jobs · ${new Date().toLocaleDateString()}${suffix}`;
   list.innerHTML = shown.length
     ? shown
@@ -169,9 +176,11 @@ function debounce(fn, ms) {
 }
 
 export async function init() {
-  const { p, q, src, geo, tzTolerance, sort, chips, list, meta } = createElements();
+  const { q, src, geo, tzTolerance, sort, chips, list, meta } = createElements();
 
+  loadRoles();
   initChips(chips);
+  syncChips(chips);
 
   const res = await fetch("./jobs.json");
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -189,34 +198,17 @@ export async function init() {
     return;
   }
 
-  try {
-    p.value = localStorage.getItem(PROFILE_KEY) ?? "";
-  } catch {
-    p.value = "";
-  }
-  syncChips(p, chips);
-
-  const doRender = () => render({ p, q, src, geo, tzTolerance, sort, chips, list, meta });
+  const doRender = () => render({ q, src, geo, tzTolerance, sort, chips, list, meta });
   const debouncedRender = debounce(doRender, DEBOUNCE_MS);
 
   chips.addEventListener("click", (e) => {
     const b = e.target.closest(".chip");
     if (!b) return;
-    const roleIndex = Array.prototype.indexOf.call(chips.children, b);
-    const roleId = ROLE_IDS[roleIndex];
-    const rest = picked(p);
-    const i = rest.findIndex((s) => ROLE_BY_LABEL.get(labelKey(s)) === roleId);
-    if (i >= 0) rest.splice(i, 1);
-    else rest.push(b.textContent);
-    p.value = rest.join(", ");
-    save(p.value);
-    syncChips(p, chips);
-    doRender();
-  });
-
-  p.addEventListener("input", () => {
-    save(p.value);
-    syncChips(p, chips);
+    const role = b.textContent;
+    if (selectedRoles.has(role)) selectedRoles.delete(role);
+    else selectedRoles.add(role);
+    save();
+    syncChips(chips);
     doRender();
   });
 
