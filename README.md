@@ -41,21 +41,29 @@ Node >= 22 (CI runs 24). `npm run fetch` hits the real feeds; most of them send 
 
 | Path | Role |
 | --- | --- |
-| `scripts/fetch-jobs.mjs` | Aggregator: source definitions, retries, normalisation to `{id,title,company,url,source,tags,postedAt,excerpt}` |
+| `scripts/fetch-jobs.mjs` | Aggregator: source definitions, retries, normalisation to `{id,title,company,url,source,tags,postedAt,excerpt,location,timezoneOffsets}` |
+| `scripts/timezone.mjs` | Resolves a free-text location to UTC offsets from Node's own ICU data (`Intl`): IANA city names, country names, US states, zone abbreviations. Build-time only, no data files |
 | `site/index.html` | The page: styles, markup, and the module script that wires state, rendering and events |
 | `site/profile.mjs` | Pure logic, no DOM: `terms`, `scoreJob`, `matchedTerms`, `rankJobs`, `searchTokens`, `searchScore`, `jobMatches` |
-| `test/*.test.mjs` | `node:test` suites (15 tests) covering both modules |
+| `test/*.test.mjs` | `node:test` suites (54 tests) covering the scripts, both modules, and the filter UI through a DOM stub |
 | `biome.json` | Formatter + linter config (line width 120, organised imports) |
 
 Ranking and search scoring:
 
 - Profile terms: aliases fold into a canonical form (`front end` -> `frontend`, `people operations` -> `hr`, `machine learning` -> `ml`, `sre` -> `devops`), stopwords are dropped, then matches are weighted per field: title 3, tags 2, excerpt 1.
 - Search: every query token has to hit some word; fields are weighted title 3, tags 2, company 1, excerpt 1, and the per-token best weights are summed into a relevance score. A word matches on exact, prefix, or one edit away (insert/delete/substitute/transpose) for tokens of 5+ characters.
-- Deliberately not done: abbreviation expansion in the search box (`sre` finds nothing there, while the profile box folds it), negation ("no on-call"), seniority and timezone filters, multi-language profiles.
+- Deliberately not done: abbreviation expansion in the search box (`sre` finds nothing there, while the profile box folds it), negation ("no on-call"), seniority filters, multi-language profiles.
+
+## Geography filter
+
+- `scripts/timezone.mjs` turns each job's free-text `location` into UTC offsets at build time, reading ICU's tz database through `Intl` instead of shipping a city list: `Copenhagen` -> `[2]`, `Vancouver` -> `[-7]`, `United States` -> `[-10..-5]`, `Kansas` -> `[-6,-5]`, `NYC or Remote (EST or CST)` -> `[-6,-5]`.
+- The browser only compares numbers. "My timezone" keeps a job when any of its offsets is within the tolerance of the reader's clock.
+- A label that names no place (`Remote`, `Worldwide`, a company name) or a town ICU does not know stays visible: roughly 2% of the feed. Guessing those away would hide takeable jobs, which is worse than showing a doubtful one.
+- The regional dropdowns use fixed bands: Americas -10..-3, EMEA -1..+4, APAC +5..+12. They intentionally differ from a tolerance window: a region is a place, not a distance.
 
 ## Automation
 
-- `.github/workflows/jobs.yml` — daily at `17 6 * * *` and on `workflow_dispatch`: tests, fetch, deploy to Pages. There is **no `push` trigger**, so shipping data requires `gh workflow run jobs.yml`.
+- `.github/workflows/jobs.yml` — daily at `17 6 * * *`, on `workflow_dispatch`, and on every push to `main`: tests, fetch, deploy to Pages.
 - `.github/workflows/ci.yml` — on every pull request: `npm ci`, `npm run fmt:check`, `npm run lint`, `npm test`.
 - `main` is protected, so changes land through pull requests only.
 - Husky hooks: `pre-commit` runs `biome check --staged` (fast, check-only: it never rewrites your index), `pre-push` runs `npm run check`.

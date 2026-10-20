@@ -170,12 +170,13 @@ const geoFetch = (url) => {
   return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve(geoBody[key] || "") });
 };
 
-test("geo filter: himalayas jobs have location and timezoneOffsets", async () => {
+test("geo filter: the build resolves a location into offsets", async () => {
   const jobs = await collectJobs({ fetchImpl: geoFetch });
   const himalayasJobs = jobs.filter((j) => j.source === "himalayas");
 
   assert.equal(himalayasJobs.length, 3);
 
+  // Offsets follow the location, not the source's own list: Germany is +2 in July.
   const usJob = himalayasJobs.find((j) => j.title === "US Engineer");
   assert.ok(usJob.location?.includes("United States"));
   assert.ok(usJob.timezoneOffsets?.includes(-5));
@@ -183,13 +184,63 @@ test("geo filter: himalayas jobs have location and timezoneOffsets", async () =>
 
   const euJob = himalayasJobs.find((j) => j.title === "EU Engineer");
   assert.ok(euJob.location?.includes("Germany"));
-  assert.ok(euJob.timezoneOffsets?.includes(1));
-  assert.ok(euJob.timezoneOffsets?.includes(2));
+  assert.ok(
+    euJob.timezoneOffsets?.every((off) => off === 1 || off === 2),
+    `got ${euJob.timezoneOffsets}`,
+  );
 
   const apacJob = himalayasJobs.find((j) => j.title === "APAC Engineer");
   assert.ok(apacJob.location?.includes("Singapore"));
   assert.ok(apacJob.timezoneOffsets?.includes(8));
   assert.ok(apacJob.timezoneOffsets?.includes(10));
+});
+
+test("geo filter: a location overrides the source's UTC+14 sentinel", async () => {
+  const body = JSON.stringify({
+    jobs: [
+      {
+        title: "US-only Sentinel",
+        companyName: "SentinelCo",
+        guid: "https://himalayas.app/companies/sentinelco/jobs/us-sentinel",
+        applicationLink: "https://himalayas.app/jobs/us-sentinel",
+        pubDate: recent(1),
+        categories: ["Engineering"],
+        excerpt: "US only",
+        locationRestrictions: ["United States"],
+        // Himalayas closes US-only lists with a UTC+14 sentinel; resolving the
+        // location must drop it, or an Asian reader sees the job at wide tolerances.
+        timezoneRestrictions: [-8, -7, -6, -5, 14],
+      },
+      {
+        title: "No Location, Source Offsets",
+        companyName: "BareCo",
+        guid: "https://himalayas.app/companies/bareco/jobs/bare",
+        applicationLink: "https://himalayas.app/jobs/bare",
+        pubDate: recent(2),
+        categories: ["Engineering"],
+        excerpt: "no location",
+        timezoneRestrictions: [7, 8],
+      },
+    ],
+  });
+  // Only Himalayas is swapped; the other sources keep their valid fixtures.
+  const fetchImpl = (url) => {
+    const key = Object.keys(SOURCES).find((k) => SOURCES[k].url.startsWith(url.split("?")[0]));
+    return Promise.resolve({
+      ok: true,
+      status: 200,
+      text: async () => (key === "himalayas" ? body : geoBody[key] || ""),
+    });
+  };
+  const jobs = await collectJobs({ fetchImpl });
+
+  const sentinel = jobs.find((j) => j.title === "US-only Sentinel");
+  assert.ok(sentinel.timezoneOffsets.includes(-5));
+  assert.ok(!sentinel.timezoneOffsets.includes(14), `sentinel survived: ${sentinel.timezoneOffsets}`);
+
+  // Nothing to resolve: the source's own offsets stand.
+  const bare = jobs.find((j) => j.title === "No Location, Source Offsets");
+  assert.deepEqual(bare.timezoneOffsets, [7, 8]);
 });
 
 test("geo filter: jobicy jobs have location from jobGeo", async () => {
