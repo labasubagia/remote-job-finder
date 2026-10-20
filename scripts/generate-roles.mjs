@@ -18,6 +18,25 @@ function buildPhrases(canon) {
     .map((w) => [w, canon.get(w)]);
 }
 
+function formatArray(arr) {
+  return `[\n${arr.map((v) => `  ${JSON.stringify(v)},`).join("\n")}\n]`;
+}
+
+function formatValue(v) {
+  if (Array.isArray(v)) {
+    return `[${v.map((x) => JSON.stringify(x)).join(", ")}]`;
+  }
+  return JSON.stringify(v);
+}
+
+function formatInnerArray(arr) {
+  return `[${arr.map(formatValue).join(", ")}]`;
+}
+
+function formatObjectArray(arr) {
+  return `[\n${arr.map((v) => `  ${formatInnerArray(v)},`).join("\n")}\n]`;
+}
+
 export function generateRolesCode(config) {
   const roles = config.roles.filter((r) => r.id !== "other");
   const roleLabels = roles.map((r) => r.label);
@@ -30,17 +49,17 @@ export function generateRolesCode(config) {
 
   return `// Generated automatically from scripts/roles.json by scripts/generate-roles.mjs - DO NOT EDIT MANUALLY.
 
-export const ROLES = ${JSON.stringify(roleLabels, null, 2)};
+export const ROLES = ${formatArray(roleLabels)};
 
-export const ROLE_IDS = ${JSON.stringify(roleIds, null, 2)};
+export const ROLE_IDS = ${formatArray(roleIds)};
 
-export const ROLE_EXTRA_ALIASES = ${JSON.stringify(roleAliases, null, 2)};
+export const ROLE_EXTRA_ALIASES = ${formatObjectArray(roleAliases)};
 
-export const GROUPS = ${JSON.stringify(groups, null, 2)};
+export const GROUPS = ${formatObjectArray(groups)};
 
-export const CANON = ${JSON.stringify([...canon.entries()], null, 2)};
+export const CANON = ${formatObjectArray([...canon.entries()])};
 
-export const PHRASES = ${JSON.stringify(phrases, null, 2)};
+export const PHRASES = ${formatObjectArray(phrases)};
 `;
 }
 
