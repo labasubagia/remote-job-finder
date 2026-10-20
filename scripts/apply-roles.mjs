@@ -7,9 +7,10 @@ import { applyRoles } from "./roles.mjs";
 
 const arg = (name, fallback) => {
   const i = process.argv.indexOf(`--${name}`);
-  return i === -1 ? fallback : process.argv[i + 1];
+  if (i !== -1) return process.argv[i + 1];
+  const envName = `RJF_${name.toUpperCase().replace(/-/g, "_")}_PATH`;
+  return process.env[envName] ?? fallback;
 };
-
 const readJson = async (path, fallback) => {
   try {
     return JSON.parse(await readFile(path, "utf8"));

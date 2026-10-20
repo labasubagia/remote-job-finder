@@ -31,11 +31,10 @@ def state(job):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--jobs", default="site/jobs.json")
-    parser.add_argument("--previous", default=".cache/previous-jobs.json")
-    parser.add_argument("--out", default=".cache/role-predictions.json")
+    parser.add_argument("--jobs", default=os.environ.get("RJF_JOBS_PATH", "site/jobs.json"))
+    parser.add_argument("--previous", default=os.environ.get("RJF_PREVIOUS_PATH", ".cache/previous-jobs.json"))
+    parser.add_argument("--out", default=os.environ.get("RJF_PREDICTIONS_PATH", ".cache/role-predictions.json"))
     args = parser.parse_args()
-
     jobs = json.loads(Path(args.jobs).read_text())
     previous = {}
     if Path(args.previous).exists():
