@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { jobMatches, matchedTerms, rankJobs, scoreJob, searchScore, terms } from "../site/search.mjs";
+import { jobMatches, matchedTerms, profileMatcher, rankJobs, scoreJob, searchScore, terms } from "../site/search.mjs";
 
 const job = (id, title, tags = [], excerpt = "", postedAt = "2026-10-01T00:00:00Z") => ({
   id,
@@ -129,4 +129,46 @@ test("searchScore ranks title hits above tag hits above excerpt hits", () => {
   assert.equal(searchScore("kubernetes", job("n", "Unrelated")), 0);
   assert.equal(searchScore("kubernetes platform", title), 6, "token scores add up, two title hits");
   assert.equal(searchScore("", title), 0);
+});
+
+test("profileMatcher trusts a classified role and ignores noisy tags", () => {
+  const hr = profileMatcher("HR / recruiter");
+  assert.ok(hr({ ...job("h", "Recruiter"), role: "hr-recruiter" }));
+  assert.ok(!hr({ ...job("s", "Principal Software Engineer", ["dev", "recruiter"]) }), "a recruiter tag must not pass");
+  assert.ok(!hr({ ...job("m", "Marketing Manager"), role: "marketing" }));
+});
+
+test("profileMatcher recognizes role aliases without falling back to noisy tag text matching", () => {
+  for (const query of ["HR", "hr", "recruiter", "HR / recruiter"]) {
+    const matcher = profileMatcher(query);
+    assert.ok(matcher({ ...job("h", "Recruiter"), role: "hr-recruiter" }));
+    assert.ok(
+      !matcher({ ...job("s", "Principal Software Engineer", ["dev", "recruiter"]) }),
+      `noisy recruiter tag must not pass for "${query}"`,
+    );
+    assert.ok(!matcher({ ...job("m", "Marketing Manager"), role: "marketing" }));
+  }
+});
+
+test("profileMatcher falls back to the title for unclassified jobs", () => {
+  const hr = profileMatcher("HR / recruiter");
+  assert.ok(hr(job("p", "People Operations Manager")));
+  assert.ok(!hr(job("x", "Senior Backend Engineer")));
+});
+
+test("profile conditions combine with AND, roles are one IN condition", () => {
+  const both = profileMatcher("HR / recruiter, Marketing");
+  assert.ok(both({ ...job("h", "Recruiter"), role: "hr-recruiter" }));
+  assert.ok(both({ ...job("m", "Growth Lead"), role: "marketing" }));
+  assert.ok(!both({ ...job("s", "Backend Engineer"), role: "software-engineer" }));
+
+  const textAnd = profileMatcher("backend, go");
+  assert.ok(textAnd(job("g", "Backend Engineer (Go)")));
+  assert.ok(!textAnd(job("b", "Backend Engineer")));
+  assert.ok(!textAnd(job("go", "Go Developer")));
+});
+
+test("an empty profile filters nothing", () => {
+  const anything = profileMatcher("   ");
+  assert.ok(anything(job("a", "Anything", ["whatever"])));
 });

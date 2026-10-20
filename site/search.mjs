@@ -81,7 +81,7 @@ export function terms(text) {
 }
 
 // Same order as ROLES; test/roles.test.mjs keeps this and scripts/roles.json honest.
-const ROLE_IDS = [
+export const ROLE_IDS = [
   "software-engineer",
   "data-scientist",
   "product-designer",
@@ -94,6 +94,35 @@ const ROLE_IDS = [
   "engineering-manager",
 ];
 const ROLE_TERMS = new Map(ROLES.map((label, i) => [ROLE_IDS[i], terms(label)]));
+// Punctuation and spacing must not decide whether an entry is a role.
+export const labelKey = (s) =>
+  String(s ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+
+const ROLE_EXTRA_ALIASES = [
+  ["software-engineer", ["software", "swe", "developer", "engineer"]],
+  ["data-scientist", ["data science", "data analyst", "data"]],
+  ["product-designer", ["product design", "designer", "ux", "ui"]],
+  ["marketing", ["growth", "seo"]],
+  ["customer-support", ["support", "helpdesk", "customer success"]],
+  ["sales", ["bdr", "sdr", "account executive"]],
+  ["hr-recruiter", ["hr", "recruiter", "recruiting", "talent", "people operations", "people ops"]],
+  ["devops-sre", ["devops", "sre", "infrastructure", "platform", "cloud"]],
+  ["machine-learning", ["machine learning", "ml", "ai", "artificial intelligence"]],
+  ["engineering-manager", ["engineering manager", "eng manager", "em", "tech lead manager"]],
+];
+
+export const ROLE_BY_LABEL = new Map([
+  ...ROLES.flatMap((label, i) => {
+    const id = ROLE_IDS[i];
+    const parts = label.split(/[/,]+/).map(labelKey).filter(Boolean);
+    return [[labelKey(label), id], [labelKey(id), id], ...parts.map((p) => [p, id])];
+  }),
+  ...ROLE_EXTRA_ALIASES.flatMap(([id, aliases]) => aliases.map((a) => [labelKey(a), id])),
+]);
+const ROLE_LABEL_TERMS = new Map(ROLE_IDS.map((id, i) => [id, terms(ROLES[i])]));
 const ROLE_BONUS = 1.5;
 
 // Weight per field: a hit in the title matters most, a hit in the excerpt least.
@@ -120,6 +149,37 @@ export function scoreJob(profileTerms, job) {
   const roleTerms = job.role && ROLE_TERMS.get(job.role);
   if (roleTerms && [...profileTerms].some((t) => roleTerms.has(t))) score += ROLE_BONUS;
   return score / profileTerms.size;
+}
+
+// Profile as a filter: selected roles are one condition (OR inside, SQL `IN`),
+// free-text entries are additional conditions (all must match), so conditions
+// combine with AND. A role also matches by title, so a missing or wrong
+// classification does not hide a posting whose title is unmistakable.
+export function profileMatcher(profileText) {
+  const roleIds = new Set();
+  const textTerms = [];
+  for (const entry of String(profileText ?? "").split(",")) {
+    const value = entry.trim();
+    if (!value) continue;
+    const id = ROLE_BY_LABEL.get(labelKey(value));
+    if (id) roleIds.add(id);
+    else textTerms.push(...terms(value));
+  }
+  if (!roleIds.size && !textTerms.length) return () => true;
+
+  return (job) => {
+    if (roleIds.size) {
+      const title = terms(job.title);
+      const byRole = Boolean(job.role) && roleIds.has(job.role);
+      const byTitle = [...roleIds].some((id) => [...ROLE_LABEL_TERMS.get(id)].every((t) => title.has(t)));
+      if (!byRole && !byTitle) return false;
+    }
+    if (textTerms.length) {
+      const present = new Set(fieldSets(job).flatMap(([, set]) => [...set]));
+      if (!textTerms.every((t) => present.has(t))) return false;
+    }
+    return true;
+  };
 }
 
 export function matchedTerms(profileTerms, job) {

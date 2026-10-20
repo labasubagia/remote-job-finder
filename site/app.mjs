@@ -1,4 +1,17 @@
-import { esc, jobMatches, matchedTerms, PROFILE_KEY, ROLES, rankJobs, searchScore, terms } from "./search.mjs";
+import {
+  esc,
+  jobMatches,
+  labelKey,
+  matchedTerms,
+  PROFILE_KEY,
+  profileMatcher,
+  ROLE_BY_LABEL,
+  ROLE_IDS,
+  ROLES,
+  rankJobs,
+  searchScore,
+  terms,
+} from "./search.mjs";
 
 const RTF = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
 const DEBOUNCE_MS = 150;
@@ -53,8 +66,16 @@ function picked(p) {
 }
 
 function syncChips(p, chips) {
-  const on = new Set(picked(p).map((s) => s.toLowerCase()));
-  for (const b of chips.children) b.setAttribute("aria-pressed", String(on.has(b.textContent.toLowerCase())));
+  const activeRoles = new Set();
+  for (const s of picked(p)) {
+    const id = ROLE_BY_LABEL.get(labelKey(s));
+    if (id) activeRoles.add(id);
+  }
+  for (let i = 0; i < chips.children.length; i++) {
+    const b = chips.children[i];
+    const roleId = ROLE_IDS[i];
+    b.setAttribute("aria-pressed", String(activeRoles.has(roleId)));
+  }
 }
 // biome-ignore lint/correctness/noUnusedFunctionParameters: used via .value
 function render({ p, q, src, geo, tzTolerance, sort, chips, list, meta }) {
@@ -91,7 +112,10 @@ function render({ p, q, src, geo, tzTolerance, sort, chips, list, meta }) {
     return offsets.some((off) => off >= band[0] && off <= band[1]);
   }
 
-  let shown = jobs.filter((j) => (!pick || j.source === pick) && geoMatches(j) && jobMatches(needle, j));
+  const matchesProfile = profileMatcher(profile);
+  let shown = jobs.filter(
+    (j) => (!pick || j.source === pick) && geoMatches(j) && jobMatches(needle, j) && matchesProfile(j),
+  );
   const newest = (a, b) => Date.parse(b.postedAt) - Date.parse(a.postedAt);
   const ranked = !needle && sort.value === "best" && Boolean(profile);
   if (needle && sort.value === "new") {
@@ -109,9 +133,11 @@ function render({ p, q, src, geo, tzTolerance, sort, chips, list, meta }) {
     ? ` · ${sort.value === "new" ? "newest" : "best"} matches for "${clip(needle)}"`
     : ranked
       ? ` · ranked for "${clip(profile)}"`
-      : geoPick
-        ? ` · filtered by ${geo.options[geo.selectedIndex].text}`
-        : "";
+      : profile
+        ? ` · filtered by "${clip(profile)}"`
+        : geoPick
+          ? ` · filtered by ${geo.options[geo.selectedIndex].text}`
+          : "";
   meta.textContent = `${shown.length} of ${jobs.length} remote jobs · ${new Date().toLocaleDateString()}${suffix}`;
   list.innerHTML = shown.length
     ? shown
@@ -176,8 +202,10 @@ export async function init() {
   chips.addEventListener("click", (e) => {
     const b = e.target.closest(".chip");
     if (!b) return;
+    const roleIndex = Array.prototype.indexOf.call(chips.children, b);
+    const roleId = ROLE_IDS[roleIndex];
     const rest = picked(p);
-    const i = rest.findIndex((s) => s.toLowerCase() === b.textContent.toLowerCase());
+    const i = rest.findIndex((s) => ROLE_BY_LABEL.get(labelKey(s)) === roleId);
     if (i >= 0) rest.splice(i, 1);
     else rest.push(b.textContent);
     p.value = rest.join(", ");
