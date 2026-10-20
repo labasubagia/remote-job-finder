@@ -152,7 +152,8 @@ export async function init() {
 
   const res = await fetch("./jobs.json");
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  jobs = Array.isArray(await res.json()) ? jobs : [];
+  const data = await res.json();
+  jobs = Array.isArray(data) ? data : [];
 
   for (const s of [...new Set(jobs.map((j) => j.source))].sort()) {
     src.insertAdjacentHTML(
