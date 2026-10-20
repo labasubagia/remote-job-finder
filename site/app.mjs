@@ -20,8 +20,10 @@ const REGIONS = {
     re: /united states|\busa\b|\bu\.s\.|canada|mexico|brazil|argentina|chile|colombia|peru|latin|\blatam\b|america/,
   },
   emea: {
+    // Settled EU/UK is UTC+0..+2; UTC+3/+4 (Moscow, Dubai) would drag the band
+    // two hours closer to Asia than the labels actually imply.
     min: -1,
-    max: 4,
+    max: 2,
     re: /europe|\bemea\b|\buk\b|united kingdom|germany|france|spain|italy|netherlands|poland|sweden|norway|denmark|finland|ireland|portugal|belgium|austria|switzerland|greece|africa|middle east|\buae\b|israel|cyprus|ukraine|bulgaria|romania|serbia|\bcet\b|berlin|z[üu]rich|hanover|paris|london|bern|amsterdam|munich|madrid|barcelona|dublin|lisbon|stockholm|vienna|warsaw|prague/,
   },
   apac: {
@@ -93,13 +95,15 @@ function render({ p, q, src, geo, tzTolerance, sort, chips, list, meta }) {
     if (geoPick === "my-tz") {
       // Unlabelled or global: cannot prove a mismatch, so keep it.
       if (!loc || WORLDWIDE_RE.test(loc)) return true;
-      if (offsets) return offsets.some((off) => Math.abs(off - userOffset) <= tolerance);
+      // Location wins when it names a region: Himalayas marks US-only roles with
+      // a timezone list ending in the 14 sentinel, which would otherwise read as
+      // "reachable from Asia" once the tolerance grows past 7h.
       const hit = regionsIn(loc);
-      if (!hit.length) return true; // ambiguous wording such as "EMEA-agnostic"
       const lo = userOffset - tolerance;
       const hi = userOffset + tolerance;
-      // Keep when the job's plausible offset band overlaps the user's window.
-      return hit.some((r) => REGIONS[r].min <= hi && REGIONS[r].max >= lo);
+      if (hit.length && !hit.some((r) => REGIONS[r].min <= hi && REGIONS[r].max >= lo)) return false;
+      if (offsets) return offsets.some((off) => Math.abs(off - userOffset) <= tolerance);
+      return true; // ambiguous wording such as "EMEA-agnostic"
     }
 
     if (geoPick === "worldwide") return WORLDWIDE_RE.test(loc);
