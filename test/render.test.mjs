@@ -128,3 +128,12 @@ test("a job without tags does not crash the renderer", async () => {
   assert.match(get("list").innerHTML, /No tags/);
   assert.match(get("meta").textContent, /1 of 1/);
 });
+test("a missing DOM element fails with a clear message instead of a TypeError", async () => {
+  const ids = ["q", "src", "geo", "sort", "chips", "list", "meta"]; // no tzTolerance
+  const nodes = new Map(ids.map((id) => [id, stub(id)]));
+  globalThis.document = { getElementById: (id) => nodes.get(id) ?? null };
+  globalThis.localStorage = { getItem: () => null, setItem() {} };
+  globalThis.fetch = async () => ({ ok: true, status: 200, json: async () => [] });
+  const { init } = await import(`../site/app.mjs?${Math.random()}`);
+  await assert.rejects(init(), /Required DOM element not found/);
+});

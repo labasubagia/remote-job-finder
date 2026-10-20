@@ -45,6 +45,9 @@ function createElements() {
   const chips = document.getElementById("chips");
   const list = document.getElementById("list");
   const meta = document.getElementById("meta");
+  if (!q || !src || !geo || !tzTolerance || !sort || !chips || !list || !meta) {
+    throw new Error("Required DOM element not found");
+  }
   return { q, src, geo, tzTolerance, sort, chips, list, meta };
 }
 
@@ -81,7 +84,7 @@ function loadRoles() {
 }
 
 function syncChips(chips) {
-  for (const b of chips.children) {
+  for (const b of chips?.children ?? []) {
     b.setAttribute("aria-pressed", String(selectedRoles.has(b.textContent)));
   }
 }
@@ -123,7 +126,11 @@ function render({ q, src, geo, tzTolerance, sort, chips, list, meta }) {
   let shown = jobs.filter(
     (j) => (!pick || j.source === pick) && geoMatches(j) && jobMatches(needle, j) && matchesRole(j),
   );
-  const newest = (a, b) => Date.parse(b.postedAt) - Date.parse(a.postedAt);
+  const newest = (a, b) => {
+    const at = Date.parse(a.postedAt ?? ""),
+      bt = Date.parse(b.postedAt ?? "");
+    return (Number.isNaN(bt) ? -Infinity : bt) - (Number.isNaN(at) ? -Infinity : at);
+  };
   const ranked = !needle && sort.value === "best" && selectedRoles.size > 0;
   if (needle && sort.value === "new") {
     shown.sort(newest);
@@ -213,7 +220,7 @@ export async function init() {
   const debouncedRender = debounce(doRender, DEBOUNCE_MS);
 
   chips.addEventListener("click", (e) => {
-    const b = e.target.closest(".chip");
+    const b = e.target?.closest?.(".chip");
     if (!b) return;
     const role = b.textContent;
     if (selectedRoles.has(role)) selectedRoles.delete(role);

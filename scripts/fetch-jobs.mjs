@@ -132,7 +132,7 @@ export const SOURCES = {
       return data
         .filter((j) => j?.id && j.position)
         .map((j) => {
-          const location = j.location?.trim() || null;
+          const location = String(j.location ?? "").trim() || null;
           return {
             id: `remoteok-${j.id}`,
             title: j.position,
@@ -153,7 +153,7 @@ export const SOURCES = {
       const jobs = json("remotive", text)?.jobs;
       if (!Array.isArray(jobs)) throw fail("remotive", "missing jobs[] (schema changed?)");
       return jobs.map((j) => {
-        const location = j.candidate_required_location?.trim() || null;
+        const location = String(j.candidate_required_location ?? "").trim() || null;
         return {
           id: `remotive-${j.id}`,
           title: j.title,
@@ -176,7 +176,7 @@ export const SOURCES = {
       return jobs
         .filter((j) => j?.remote === true) // board mixes onsite jobs; keep remote only
         .map((j) => {
-          const location = j.location?.trim() || null;
+          const location = String(j.location ?? "").trim() || null;
           return {
             id: `arbeitnow-${j.slug}`,
             title: j.title,
@@ -251,7 +251,7 @@ export const SOURCES = {
       const jobs = json("jobicy", text)?.jobs;
       if (!Array.isArray(jobs)) throw fail("jobicy", "missing jobs[] (schema changed?)");
       return jobs.map((j) => {
-        const location = j.jobGeo?.trim() || null;
+        const location = String(j.jobGeo ?? "").trim() || null;
         return {
           id: `jobicy-${j.id}`,
           title: j.jobTitle,
@@ -274,7 +274,7 @@ export const SOURCES = {
       if (!Array.isArray(jobs)) throw fail("workingnomads", "expected a JSON array (schema changed?)");
       return jobs.map((j) => {
         const path = String(j.url ?? "");
-        const location = j.location?.trim() || null;
+        const location = String(j.location ?? "").trim() || null;
         return {
           id: `workingnomads-${path.split("/").filter(Boolean).pop() || j.title}`,
           title: j.title,
@@ -413,7 +413,9 @@ export async function collectJobs({
   const resolveLocation = createLocationResolver({ now: new Date(now) });
   const jobs = results.flat().map((job) => ({
     ...job,
-    timezoneOffsets: resolveLocation(job.location) ?? job.timezoneOffsets ?? null,
+    timezoneOffsets: (resolveLocation(job.location) ?? job.timezoneOffsets ?? null)?.filter(
+      (n) => typeof n === "number" && Number.isFinite(n),
+    ),
   }));
 
   return deduplicateAndSort(jobs);

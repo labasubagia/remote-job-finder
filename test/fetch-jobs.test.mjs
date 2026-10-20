@@ -361,3 +361,44 @@ test("RSS items with attributes on the <item> tag are still parsed", async () =>
     "item with attributes parsed",
   );
 });
+test("non-string location is coerced instead of crashing .trim()", async () => {
+  const jsonRss = (url) => {
+    if (url.includes("remoteok")) {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        text: () =>
+          Promise.resolve(
+            JSON.stringify([
+              {
+                id: "1",
+                position: "Eng",
+                company: "Acme",
+                location: 12345,
+                url: "https://ex.com/1",
+                date: recent(1),
+                description: "d",
+                tags: [],
+              },
+              {
+                id: "2",
+                position: "Dev",
+                company: "Co",
+                location: null,
+                url: "https://ex.com/2",
+                date: recent(1),
+                description: "d",
+                tags: [],
+              },
+            ]),
+          ),
+      });
+    }
+    return okFetch(url);
+  };
+  const jobs = await collectJobs({ fetchImpl: jsonRss, maxAgeDays: 30 });
+  const j1 = jobs.find((j) => j.id === "remoteok-1");
+  const j2 = jobs.find((j) => j.id === "remoteok-2");
+  assert.equal(j1.location, "12345");
+  assert.equal(j2.location, null);
+});

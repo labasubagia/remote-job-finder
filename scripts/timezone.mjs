@@ -63,7 +63,7 @@ const ALIASES = { us: "united states", usa: "united states", uk: "united kingdom
 // "U.S." -> "us" (the dot is part of the abbreviation, not a separator) and
 // "Zürich" -> "zurich" (the tz database spells it without the umlaut).
 const fold = (s) =>
-  s
+  String(s ?? "")
     .normalize("NFD")
     .replace(/\p{M}/gu, "")
     .replace(/\s*&\s*/g, " and ")

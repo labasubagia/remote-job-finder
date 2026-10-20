@@ -217,7 +217,11 @@ export function jobMatches(query, job) {
 // Recommended: profile score desc, then newest. No profile: pure recency (same as Newest).
 export function rankJobs(jobs, profileText) {
   const profileTerms = terms(profileText);
-  const newest = (a, b) => Date.parse(b.postedAt) - Date.parse(a.postedAt);
+  const newest = (a, b) => {
+    const at = Date.parse(a.postedAt ?? ""),
+      bt = Date.parse(b.postedAt ?? "");
+    return (Number.isNaN(bt) ? -Infinity : bt) - (Number.isNaN(at) ? -Infinity : at);
+  };
   const scored = jobs.map((job) => ({ job, score: scoreJob(profileTerms, job) }));
   scored.sort((a, b) => b.score - a.score || newest(a.job, b.job));
   return scored;
