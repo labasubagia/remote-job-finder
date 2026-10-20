@@ -49,13 +49,13 @@ def main():
             prev_data = json.loads(Path(args.previous).read_text())
             if isinstance(prev_data, list):
                 for job in prev_data:
-                    jid = job.get("id")
-                    if isinstance(jid, str):
-                        previous[jid] = job
+                    if isinstance(job, dict):
+                        jid = job.get("id")
+                        if isinstance(jid, str):
+                            previous[jid] = job
         except (json.JSONDecodeError, OSError):
             pass
-
-    missing = [job for job in jobs if not same_posting(job, previous.get(job.get("id")))]
+    missing = [job for job in jobs if isinstance(job, dict) and not same_posting(job, previous.get(job.get("id")))]
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     if not missing:
@@ -77,8 +77,13 @@ def main():
 
     predictions = {}
     for index, job in enumerate(missing, 1):
+        if not isinstance(job, dict):
+            continue
+        jid = job.get("id")
+        if not isinstance(jid, str):
+            continue
         answer = agent.predict(state(job), questions, min_confidence=THRESHOLD)["answers"]["role"]
-        predictions[job["id"]] = {
+        predictions[jid] = {
             "role": answer["choice"],
             "confidence": answer["answer_confidence"],
             "abstained": answer.get("abstention") == "abstained" or bool(answer.get("low_confidence")),
@@ -89,7 +94,6 @@ def main():
 
     out.write_text(json.dumps(predictions, ensure_ascii=False))
     print(f"roles: {len(missing)} of {len(jobs)} jobs predicted, threshold {THRESHOLD}")
-
 
 if __name__ == "__main__":
     main()
