@@ -26,8 +26,11 @@ const predictionsPath = resolve(arg("predictions", ".cache/role-predictions.json
 
 const jobs = await readJson(jobsPath, null);
 if (!Array.isArray(jobs)) throw new Error(`${jobsPath}: expected a JSON array`);
-const previous = await readJson(previousPath, []);
-const predictions = await readJson(predictionsPath, {});
+const previousRaw = await readJson(previousPath, []);
+const previous = Array.isArray(previousRaw) ? previousRaw : [];
+const predictionsRaw = await readJson(predictionsPath, {});
+const predictions =
+  predictionsRaw && typeof predictionsRaw === "object" && !Array.isArray(predictionsRaw) ? predictionsRaw : {};
 
 const merged = applyRoles(jobs, previous, predictions);
 const withRole = merged.filter((job) => job.role).length;

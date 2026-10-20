@@ -20,6 +20,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 /** Error that must turn the Actions run red instead of being retried or papered over. */
 export class FatalSourceError extends Error {}
 const fail = (source, why) => new FatalSourceError(`${source}: ${why}`);
+/** A source that returns invalid JSON is a schema change, not a parse bug in this file. */
+const json = (source, text) => {
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw fail(source, "invalid JSON (feed changed?)");
+  }
+};
 
 export async function fetchText(source, url, { fetchImpl = fetch, attempts = ATTEMPTS } = {}) {
   for (let attempt = 1; attempt <= attempts; attempt++) {
@@ -105,7 +113,7 @@ const tags = (v) =>
 
 /** RSS 2.0 <item> blocks; a feed that renames its items is a schema change, not an empty day. */
 const rssItems = (source, text) => {
-  const items = text.match(/<item>[\s\S]*?<\/item>/g);
+  const items = text.match(/<item\b[^>]*>[\s\S]*?<\/item>/g);
   if (!items?.length) throw fail(source, "no <item> in RSS (feed changed?)");
   return items;
 };
@@ -118,7 +126,7 @@ export const SOURCES = {
   remoteok: {
     url: "https://remoteok.com/api",
     parse(text) {
-      const data = JSON.parse(text);
+      const data = json("remoteok", text);
       if (!Array.isArray(data)) throw fail("remoteok", "expected a JSON array (schema changed?)");
       // data[0] is the legal notice, not a job
       return data
@@ -142,7 +150,7 @@ export const SOURCES = {
   remotive: {
     url: "https://remotive.com/api/remote-jobs",
     parse(text) {
-      const jobs = JSON.parse(text)?.jobs;
+      const jobs = json("remotive", text)?.jobs;
       if (!Array.isArray(jobs)) throw fail("remotive", "missing jobs[] (schema changed?)");
       return jobs.map((j) => {
         const location = j.candidate_required_location?.trim() || null;
@@ -163,7 +171,7 @@ export const SOURCES = {
   arbeitnow: {
     url: "https://www.arbeitnow.com/api/job-board-api",
     parse(text) {
-      const jobs = JSON.parse(text)?.data;
+      const jobs = json("arbeitnow", text)?.data;
       if (!Array.isArray(jobs)) throw fail("arbeitnow", "missing data[] (schema changed?)");
       return jobs
         .filter((j) => j?.remote === true) // board mixes onsite jobs; keep remote only
@@ -186,7 +194,7 @@ export const SOURCES = {
   himalayas: {
     url: "https://himalayas.app/jobs/api?limit=100",
     parse(text) {
-      const jobs = JSON.parse(text)?.jobs;
+      const jobs = json("himalayas", text)?.jobs;
       if (!Array.isArray(jobs)) throw fail("himalayas", "missing jobs[] (schema changed?)");
       return jobs.map((j) => {
         const guid = String(j.guid ?? "");
@@ -240,7 +248,7 @@ export const SOURCES = {
   jobicy: {
     url: "https://jobicy.com/api/v2/remote-jobs?count=50",
     parse(text) {
-      const jobs = JSON.parse(text)?.jobs;
+      const jobs = json("jobicy", text)?.jobs;
       if (!Array.isArray(jobs)) throw fail("jobicy", "missing jobs[] (schema changed?)");
       return jobs.map((j) => {
         const location = j.jobGeo?.trim() || null;
@@ -262,7 +270,7 @@ export const SOURCES = {
   workingnomads: {
     url: "https://www.workingnomads.com/api/exposed_jobs/",
     parse(text) {
-      const jobs = JSON.parse(text);
+      const jobs = json("workingnomads", text);
       if (!Array.isArray(jobs)) throw fail("workingnomads", "expected a JSON array (schema changed?)");
       return jobs.map((j) => {
         const path = String(j.url ?? "");
@@ -413,6 +421,7 @@ export async function collectJobs({
 
 async function main(argv) {
   const at = argv.indexOf("--out");
+  if (at !== -1 && !argv[at + 1]) throw new Error("--out needs a path");
   const out = resolve(at === -1 ? "site/jobs.json" : argv[at + 1]);
   const jobs = await collectJobs({ log: (m) => console.error(m) });
   await mkdir(dirname(out), { recursive: true });

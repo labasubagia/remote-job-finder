@@ -35,9 +35,10 @@ export function resolveRole(job, previous, prediction, threshold = ROLE_CONFIG.t
  * answer keep no `role` field, so the page falls back to keyword ranking.
  */
 export function applyRoles(jobs, previousJobs = [], predictions = {}, threshold = ROLE_CONFIG.threshold) {
-  const previous = new Map(previousJobs.map((job) => [job.id, job]));
+  const previous = new Map((Array.isArray(previousJobs) ? previousJobs : []).map((job) => [job.id, job]));
   return jobs.map((job) => {
-    const { role, roleConfidence } = resolveRole(job, previous.get(job.id), predictions[job.id], threshold);
+    const prediction = Object.hasOwn(predictions, job.id) ? predictions[job.id] : undefined;
+    const { role, roleConfidence } = resolveRole(job, previous.get(job.id), prediction, threshold);
     const merged = { ...job };
     delete merged.role;
     delete merged.roleConfidence;

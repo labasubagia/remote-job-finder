@@ -18,9 +18,9 @@ THRESHOLD = CONFIG["threshold"]
 def same_posting(job, previous):
     return (
         previous is not None
-        and previous.get("id") == job["id"]
-        and previous.get("title") == job["title"]
-        and previous.get("company") == job["company"]
+        and previous.get("id") == job.get("id")
+        and previous.get("title") == job.get("title")
+        and previous.get("company") == job.get("company")
     )
 
 

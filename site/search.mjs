@@ -5,7 +5,10 @@ export { CANON, GROUPS, PHRASES, ROLE_EXTRA_ALIASES, ROLE_IDS, ROLES };
 export const PROFILE_KEY = "rjf.profile.v1";
 
 export const esc = (s) =>
-  String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&", "<": "<", ">": ">", '"': "\u0026quot;" })[c]);
+  String(s ?? "").replace(
+    /[&<>"']/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
+  );
 
 const CANON_MAP = new Map(CANON);
 const canon = (w) => CANON_MAP.get(w) ?? w;

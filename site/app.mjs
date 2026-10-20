@@ -30,6 +30,9 @@ const WORLDWIDE_RE = /\b(worldwide|anywhere|global)\b/; // must match scripts/ti
 // Offsets are resolved at build time (scripts/timezone.mjs) from the IANA tz
 // database, so the browser never maps a place name to a region.
 const offsetsOf = (job) => (job.timezoneOffsets?.length ? job.timezoneOffsets : null);
+// The build drops non-http(s) links, but the DOM is the final boundary: never put
+// a javascript:/data: URL in an href, even if jobs.json was hand-edited.
+const safeUrl = (u) => (/^https?:\/\//i.test(String(u ?? "")) ? String(u) : "#");
 let jobs = [];
 const selectedRoles = new Set();
 
@@ -136,12 +139,13 @@ function render({ q, src, geo, tzTolerance, sort, chips, list, meta }) {
   const clip = (s) => (s.length > 32 ? `${s.slice(0, 32)}…` : s);
   const activeRoleList = [...selectedRoles];
   const roleText = activeRoleList.length ? activeRoleList.join(", ") : "";
+  const geoLabel = geo.selectedOptions?.[0]?.text ?? geo.options?.[geo.selectedIndex]?.text ?? geo.value;
   const suffix = needle
     ? ` · ${sort.value === "new" ? "newest" : "best"} matches for "${clip(needle)}"`
     : roleText
       ? ` · filtered by ${clip(roleText)}`
       : geoPick
-        ? ` · filtered by ${geo.options[geo.selectedIndex].text}`
+        ? ` · filtered by ${geoLabel}`
         : "";
   meta.textContent = `${shown.length} of ${jobs.length} remote jobs · ${new Date().toLocaleDateString()}${suffix}`;
   list.innerHTML = shown.length
@@ -149,7 +153,7 @@ function render({ q, src, geo, tzTolerance, sort, chips, list, meta }) {
         .map(
           (j, i) => `<li>
         <span class="num">${i + 1}</span>
-        <a href="${esc(j.url)}" target="_blank" rel="noopener">${esc(j.title)}</a>
+        <a href="${esc(safeUrl(j.url))}" target="_blank" rel="noopener">${esc(j.title)}</a>
         <div class="sub">${esc(j.company)} · ${esc(j.source)} · ${ago(j.postedAt)}${j.location ? ` · ${esc(j.location)}` : ""}</div>
         ${j.why?.length ? `<div class="why">match: ${esc(j.why.join(" · "))}</div>` : ""}
         <div class="tags">${j.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join("")}</div>
@@ -183,9 +187,18 @@ export async function init() {
   const res = await fetch("./jobs.json");
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
-  jobs = Array.isArray(data) ? data : [];
+  jobs = Array.isArray(data)
+    ? data
+        .filter((j) => j && typeof j === "object")
+        .map((j) => ({
+          ...j,
+          tags: Array.isArray(j.tags) ? j.tags : [],
+          source: typeof j.source === "string" ? j.source : "",
+        }))
+    : [];
 
   for (const s of [...new Set(jobs.map((j) => j.source))].sort()) {
+    if (!s) continue;
     src.insertAdjacentHTML(
       "beforeend",
       `<option value="${esc(s)}">${esc(s)} (${jobs.filter((j) => j.source === s).length})</option>`,

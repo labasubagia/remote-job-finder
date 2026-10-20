@@ -70,3 +70,61 @@ test("init reports an empty feed only when the payload is empty", async () => {
   const get = await mount([]);
   assert.match(get("meta").textContent, /No jobs published/);
 });
+
+test("job text is HTML-escaped, so a feed cannot inject markup", async () => {
+  const payload = `<img src=x onerror=alert(1)> & "quoted" 'single'`;
+  const get = await mount([
+    {
+      id: "x-1",
+      title: payload,
+      company: payload,
+      url: "https://example.com/x",
+      source: "acme",
+      tags: [payload],
+      postedAt: new Date().toISOString(),
+      excerpt: payload,
+      location: payload,
+    },
+  ]);
+  const html = get("list").innerHTML;
+
+  assert.ok(!html.includes("<img"), "raw markup from a job reached the DOM");
+  assert.ok(!html.includes("<script"), "raw script markup reached the DOM");
+  assert.match(html, /&lt;img src=x onerror=alert\(1\)&gt;/);
+  assert.match(html, /&amp; &quot;quoted&quot; &#39;single&#39;/);
+});
+
+test("a non-http url never becomes a live link", async () => {
+  const get = await mount([
+    {
+      id: "x-2",
+      title: "Bad link",
+      company: "Acme",
+      url: "javascript:alert(1)",
+      source: "acme",
+      tags: [],
+      postedAt: new Date().toISOString(),
+      excerpt: "",
+    },
+  ]);
+
+  assert.match(get("list").innerHTML, /href="#"/);
+  assert.ok(!get("list").innerHTML.includes("javascript:"));
+});
+
+test("a job without tags does not crash the renderer", async () => {
+  const get = await mount([
+    {
+      id: "x-3",
+      title: "No tags",
+      company: "Acme",
+      url: "https://example.com/x",
+      source: "acme",
+      postedAt: new Date().toISOString(),
+      excerpt: "",
+    },
+  ]);
+
+  assert.match(get("list").innerHTML, /No tags/);
+  assert.match(get("meta").textContent, /1 of 1/);
+});

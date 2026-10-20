@@ -327,3 +327,37 @@ test("jobs whose url is not http(s) are dropped instead of becoming javascript: 
     "dropping is logged",
   );
 });
+
+test("invalid JSON from a source throws FatalSourceError with a clear message", async () => {
+  const badJson = (url) => {
+    if (url.includes("remoteok")) {
+      return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve("not json") });
+    }
+    return okFetch(url);
+  };
+  await assert.rejects(
+    collectJobs({ fetchImpl: badJson }),
+    (err) => err instanceof FatalSourceError && err.message.includes("invalid JSON"),
+  );
+});
+
+test("RSS items with attributes on the <item> tag are still parsed", async () => {
+  const attrRss = (url) => {
+    if (url.includes("weworkremotely")) {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        text: () =>
+          Promise.resolve(
+            `<?xml version="1.0"?><rss><channel><item id="1" foo="bar"><title>Acme: Engineer</title><link>https://ex.com/1</link><pubDate>${recent(1)}</pubDate><description>Desc</description><category>dev</category></item></channel></rss>`,
+          ),
+      });
+    }
+    return okFetch(url);
+  };
+  const jobs = await collectJobs({ fetchImpl: attrRss, maxAgeDays: 30 });
+  assert.ok(
+    jobs.some((j) => j.title === "Engineer" && j.source === "wwr"),
+    "item with attributes parsed",
+  );
+});
