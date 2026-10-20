@@ -42,7 +42,14 @@ python3 -m venv .venv && .venv/bin/pip install -r scripts/requirements-roles.txt
 
 Node >= 22 (CI runs 24). `npm run fetch` hits the real feeds; most of them send no CORS headers, which is exactly why fetching runs on a runner and never in the browser.
 
-## Code map
+## Role taxonomy
+
+- **Source of truth**: `scripts/roles.json` – holds the canonical role IDs, labels, and alias lists.
+- **Generated module**: `site/roles.mjs` – produced by `npm run gen:roles` (script `scripts/generate-roles.mjs`). It exports `ROLES`, `ROLE_IDS`, and `ROLE_EXTRA_ALIASES` for the browser.
+- The UI (`site/search.mjs`) and test suites now import these constants from the generated module, eliminating duplicate hard‑coded arrays.
+- Any change to roles only requires editing `scripts/roles.json`; running the tests (or `npm run gen:roles`) updates the generated file automatically.
+
+
 
 | Path | Role |
 | --- | --- |
