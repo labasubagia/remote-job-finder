@@ -126,10 +126,14 @@ function render({ q, src, geo, tzTolerance, sort, chips, list, meta }) {
   let shown = jobs.filter(
     (j) => (!pick || j.source === pick) && geoMatches(j) && jobMatches(needle, j) && matchesRole(j),
   );
+  const postedTime = (job) => {
+    const t = Date.parse(job.postedAt ?? "");
+    return Number.isNaN(t) ? -Infinity : t;
+  };
   const newest = (a, b) => {
-    const at = Date.parse(a.postedAt ?? ""),
-      bt = Date.parse(b.postedAt ?? "");
-    return (Number.isNaN(bt) ? -Infinity : bt) - (Number.isNaN(at) ? -Infinity : at);
+    const at = postedTime(a),
+      bt = postedTime(b);
+    return at === bt ? 0 : bt - at;
   };
   const ranked = !needle && sort.value === "best" && selectedRoles.size > 0;
   if (needle && sort.value === "new") {
@@ -204,9 +208,13 @@ export async function init() {
     .filter((j) => j && typeof j === "object")
     .map((j) => ({
       ...j,
-      tags: Array.isArray(j.tags) ? j.tags : [],
+      tags: Array.isArray(j.tags) ? j.tags.filter((t) => typeof t === "string") : [],
       source: typeof j.source === "string" ? j.source : "",
       location: typeof j.location === "string" ? j.location : "",
+      timezoneOffsets: Array.isArray(j.timezoneOffsets)
+        ? j.timezoneOffsets.filter((n) => typeof n === "number" && Number.isFinite(n))
+        : null,
+      postedAt: typeof j.postedAt === "string" ? j.postedAt : "",
     }));
 
   for (const s of [...new Set(jobs.map((j) => j.source))].sort()) {

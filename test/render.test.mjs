@@ -128,6 +128,102 @@ test("a job without tags does not crash the renderer", async () => {
   assert.match(get("list").innerHTML, /No tags/);
   assert.match(get("meta").textContent, /1 of 1/);
 });
+
+test("malformed timezoneOffsets never crash the geo filter", async () => {
+  const get = await mount(
+    [
+      {
+        id: "t-1",
+        title: "String offsets",
+        company: "Acme",
+        url: "https://example.com/1",
+        source: "acme",
+        tags: [],
+        postedAt: new Date().toISOString(),
+        excerpt: "",
+        timezoneOffsets: "5",
+      },
+      {
+        id: "t-2",
+        title: "Mixed offsets",
+        company: "Acme",
+        url: "https://example.com/2",
+        source: "acme",
+        tags: [],
+        postedAt: new Date().toISOString(),
+        excerpt: "",
+        timezoneOffsets: [5, "x", null, Number.NaN],
+      },
+    ].map((job) => ({ ...job })),
+  );
+  get("geo").value = "my-tz";
+  get("geo").addEventListener;
+
+  // init already normalized; a re-render happens on setup (doRender at the end of init).
+  assert.match(get("list").innerHTML, /String offsets/);
+  assert.match(get("list").innerHTML, /Mixed offsets/);
+});
+
+test("malformed postedAt never crashes the renderer or sort", async () => {
+  const get = await mount(
+    [
+      {
+        id: "p-1",
+        title: "Bad date 1",
+        company: "Acme",
+        url: "https://example.com/1",
+        source: "acme",
+        tags: [],
+        postedAt: "not-a-date",
+        excerpt: "",
+        timezoneOffsets: null,
+      },
+      {
+        id: "p-2",
+        title: "Bad date 2",
+        company: "Acme",
+        url: "https://example.com/2",
+        source: "acme",
+        tags: [],
+        postedAt: 12345,
+        excerpt: "",
+        timezoneOffsets: null,
+      },
+      {
+        id: "p-3",
+        title: "Good date",
+        company: "Acme",
+        url: "https://example.com/3",
+        source: "acme",
+        tags: [],
+        postedAt: new Date().toISOString(),
+        excerpt: "",
+        timezoneOffsets: null,
+      },
+    ].map((job) => ({ ...job })),
+  );
+  get("sort").value = "new";
+  assert.match(get("list").innerHTML, /Good date/);
+  assert.match(get("list").innerHTML, /Bad date/);
+});
+test("non-string tags are filtered out during init", async () => {
+  const get = await mount([
+    {
+      id: "tag-1",
+      title: "Mixed tags",
+      company: "Acme",
+      url: "https://example.com/1",
+      source: "acme",
+      tags: ["react", 123, null, "typescript"],
+      postedAt: new Date().toISOString(),
+      excerpt: "",
+      timezoneOffsets: null,
+    },
+  ]);
+  // The job should render without crashing; only string tags are kept
+  assert.match(get("list").innerHTML, /Mixed tags/);
+  assert.ok(!get("list").innerHTML.includes("123"));
+});
 test("a missing DOM element fails with a clear message instead of a TypeError", async () => {
   const ids = ["q", "src", "geo", "sort", "chips", "list", "meta"]; // no tzTolerance
   const nodes = new Map(ids.map((id) => [id, stub(id)]));
