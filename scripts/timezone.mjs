@@ -77,7 +77,9 @@ const offsetCache = new Map();
 
 /** UTC offset in hours for an IANA zone, DST-aware at `now`. */
 export function zoneOffset(zone, now = new Date()) {
-  const key = `${zone}@${now.toISOString().slice(0, 10)}`;
+  // Key by the exact instant: a day-granularity key returned yesterday's offset
+  // after a DST transition (e.g. 01:00 EST and 14:00 EDT on the same date).
+  const key = `${zone}@${now.toISOString()}`;
   if (offsetCache.has(key)) return offsetCache.get(key);
   const name = new Intl.DateTimeFormat("en-US", { timeZone: zone, timeZoneName: "longOffset" })
     .formatToParts(now)
