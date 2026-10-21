@@ -100,3 +100,76 @@ test("applyRoles tolerates non-object entries in previousJobs", () => {
   assert.equal(merged[1].role, "marketing");
   assert.equal("role" in merged[2], false);
 });
+
+test("generateRolesCode exports every role id from config", async () => {
+  const { generateRolesCode } = await import("../scripts/generate-roles.mjs");
+  const json = JSON.parse(await readFile("scripts/roles.json", "utf8"));
+  const code = generateRolesCode(json);
+  const roleIds = json.roles.filter((r) => r.id !== "other").map((r) => r.id);
+  for (const id of roleIds) {
+    assert.match(code, new RegExp(`"${id}"`));
+  }
+  assert.match(code, /export const ROLES =/);
+  assert.match(code, /export const ROLE_IDS =/);
+  assert.match(code, /export const ROLE_EXTRA_ALIASES =/);
+  assert.match(code, /export const GROUPS =/);
+  assert.match(code, /export const CANON =/);
+  assert.match(code, /export const PHRASES =/);
+});
+
+test("apply-roles CLI merges predictions and writes both outputs", async () => {
+  const { spawn } = await import("node:child_process");
+  const { mkdtemp, readFile, rm, writeFile } = await import("node:fs/promises");
+  const { join } = await import("node:path");
+  const tmp = await mkdtemp(join("/tmp", "rjf-apply-roles-"));
+  try {
+    const jobsPath = join(tmp, "jobs.json");
+    const prevPath = join(tmp, "previous.json");
+    const predPath = join(tmp, "predictions.json");
+    const jobs = [{ id: "1", title: "Dev", company: "Acme", tags: [], excerpt: "", postedAt: "2026-10-01T00:00:00Z" }];
+    const previous = [{ id: "1", title: "Dev", company: "Acme", role: "backend", roleConfidence: 0.95 }];
+    const predictions = { 1: { role: "backend", confidence: 0.98, abstained: false } };
+    await writeFile(jobsPath, JSON.stringify(jobs));
+    await writeFile(prevPath, JSON.stringify(previous));
+    await writeFile(predPath, JSON.stringify(predictions));
+    await new Promise((resolve, reject) => {
+      const proc = spawn(
+        "node",
+        ["scripts/apply-roles.mjs", "--jobs", jobsPath, "--previous", prevPath, "--predictions", predPath],
+        { stdio: "pipe" },
+      );
+      let stderr = "";
+      proc.stderr.on("data", (d) => (stderr += d));
+      proc.on("close", (code) => (code === 0 ? resolve(stderr) : reject(new Error(stderr || `exit ${code}`))));
+    });
+    const merged = JSON.parse(await readFile(jobsPath, "utf8"));
+    const cached = JSON.parse(await readFile(prevPath, "utf8"));
+    assert.equal(merged[0].role, "backend");
+    assert.equal(merged[0].roleConfidence, 0.95); // cached wins
+    assert.deepEqual(cached, merged); // previous updated in place
+  } finally {
+    await rm(tmp, { recursive: true, force: true });
+  }
+});
+
+test("apply-roles CLI tolerates missing previous/predictions files", async () => {
+  const { spawn } = await import("node:child_process");
+  const { mkdtemp, readFile, rm, writeFile } = await import("node:fs/promises");
+  const { join } = await import("node:path");
+  const tmp = await mkdtemp(join("/tmp", "rjf-apply-roles-"));
+  try {
+    const jobsPath = join(tmp, "jobs.json");
+    const jobs = [{ id: "1", title: "Dev", company: "Acme", tags: [], excerpt: "", postedAt: "2026-10-01T00:00:00Z" }];
+    await writeFile(jobsPath, JSON.stringify(jobs));
+    await new Promise((resolve, reject) => {
+      const proc = spawn("node", ["scripts/apply-roles.mjs", "--jobs", jobsPath], { stdio: "pipe" });
+      let stderr = "";
+      proc.stderr.on("data", (d) => (stderr += d));
+      proc.on("close", (code) => (code === 0 ? resolve(stderr) : reject(new Error(stderr || `exit ${code}`))));
+    });
+    const merged = JSON.parse(await readFile(jobsPath, "utf8"));
+    assert.equal(merged[0].role, undefined);
+  } finally {
+    await rm(tmp, { recursive: true, force: true });
+  }
+});
