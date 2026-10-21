@@ -82,7 +82,11 @@ def main():
         jid = job.get("id")
         if not isinstance(jid, str):
             continue
-        answer = agent.predict(state(job), questions, min_confidence=THRESHOLD)["answers"]["role"]
+        try:
+            answer = agent.predict(state(job), questions, min_confidence=THRESHOLD)["answers"]["role"]
+        except Exception as e:
+            print(f"roles: {jid}: prediction failed: {e}", file=sys.stderr, flush=True)
+            continue
         predictions[jid] = {
             "role": answer["choice"],
             "confidence": answer["answer_confidence"],
