@@ -88,6 +88,18 @@ test("rankJobs with no profile is pure recency and never reorders the input arra
   );
 });
 
+test("rankJobs newest comparator is deterministic for invalid dates", () => {
+  const jobs = [
+    job("a", "A", [], "", "invalid"),
+    job("b", "B", [], "", "also-bad"),
+    job("c", "C", [], "", "2026-01-01T00:00:00Z"),
+  ];
+  const ids = rankJobs(jobs, "").map((r) => r.job.id);
+  assert.equal(ids[0], "c", "valid date first");
+  assert.equal(ids[1], "a", "deterministic order for invalid dates (stable)");
+  assert.equal(ids[2], "b", "deterministic order for invalid dates (stable)");
+});
+
 test("matchedTerms reports why a job surfaced", () => {
   const j = job("be", "Backend Engineer", ["go", "postgres"], "Own the API");
   assert.deepEqual(matchedTerms(terms("backend go rust"), j), ["backend", "go"]);
