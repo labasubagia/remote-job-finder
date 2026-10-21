@@ -327,3 +327,116 @@ test("jobs whose url is not http(s) are dropped instead of becoming javascript: 
     "dropping is logged",
   );
 });
+
+test("invalid JSON from a source throws FatalSourceError with a clear message", async () => {
+  const badJson = (url) => {
+    if (url.includes("remoteok")) {
+      return Promise.resolve({ ok: true, status: 200, text: () => Promise.resolve("not json") });
+    }
+    return okFetch(url);
+  };
+  await assert.rejects(
+    collectJobs({ fetchImpl: badJson }),
+    (err) => err instanceof FatalSourceError && err.message.includes("invalid JSON"),
+  );
+});
+
+test("RSS items with attributes on the <item> tag are still parsed", async () => {
+  const attrRss = (url) => {
+    if (url.includes("weworkremotely")) {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        text: () =>
+          Promise.resolve(
+            `<?xml version="1.0"?><rss><channel><item id="1" foo="bar"><title>Acme: Engineer</title><link>https://ex.com/1</link><pubDate>${recent(1)}</pubDate><description>Desc</description><category>dev</category></item></channel></rss>`,
+          ),
+      });
+    }
+    return okFetch(url);
+  };
+  const jobs = await collectJobs({ fetchImpl: attrRss, maxAgeDays: 30 });
+  assert.ok(
+    jobs.some((j) => j.title === "Engineer" && j.source === "wwr"),
+    "item with attributes parsed",
+  );
+});
+test("non-string location is coerced instead of crashing .trim()", async () => {
+  const jsonRss = (url) => {
+    if (url.includes("remoteok")) {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        text: () =>
+          Promise.resolve(
+            JSON.stringify([
+              {
+                id: "1",
+                position: "Eng",
+                company: "Acme",
+                location: 12345,
+                url: "https://ex.com/1",
+                date: recent(1),
+                description: "d",
+                tags: [],
+              },
+              {
+                id: "2",
+                position: "Dev",
+                company: "Co",
+                location: null,
+                url: "https://ex.com/2",
+                date: recent(1),
+                description: "d",
+                tags: [],
+              },
+            ]),
+          ),
+      });
+    }
+    return okFetch(url);
+  };
+  const jobs = await collectJobs({ fetchImpl: jsonRss, maxAgeDays: 30 });
+  const j1 = jobs.find((j) => j.id === "remoteok-1");
+  const j2 = jobs.find((j) => j.id === "remoteok-2");
+  assert.equal(j1.location, "12345");
+  assert.equal(j2.location, null);
+});
+test("a field name only matches that exact tag, so <linkfoo> cannot shadow <link>", async () => {
+  const prefixRss = (url) => {
+    if (url.includes("weworkremotely")) {
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        text: () =>
+          Promise.resolve(
+            `<?xml version="1.0"?><rss><channel><item><linkfoo>https://evil.test/x</linkfoo><title>Acme: Engineer</title><link>https://ex.com/1</link><pubDate>${recent(1)}</pubDate><description>Desc</description><category>dev</category></item></channel></rss>`,
+          ),
+      });
+    }
+    return okFetch(url);
+  };
+  const jobs = await collectJobs({ fetchImpl: prefixRss, maxAgeDays: 30 });
+  assert.ok(
+    jobs.some((j) => j.url === "https://ex.com/1"),
+    "the real <link> wins",
+  );
+  assert.ok(!jobs.some((j) => j.url.includes("evil.test")), "a longer tag name is not a match");
+});
+
+test("a response body that fails mid-read is retried, then fatal", async () => {
+  let calls = 0;
+  const brokenBody = () => {
+    calls++;
+    return Promise.resolve({
+      ok: true,
+      status: 200,
+      text: () => Promise.reject(new Error("stream reset")),
+    });
+  };
+  await assert.rejects(
+    () => fetchText("remoteok", SOURCES.remoteok.url, { fetchImpl: brokenBody, attempts: 2 }),
+    /body read failed/,
+  );
+  assert.equal(calls, 2);
+});

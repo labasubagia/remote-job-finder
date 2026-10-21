@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { readFileSync, writeFileSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 
 function buildCanon(groups) {
   const canon = new Map();
@@ -63,7 +64,7 @@ export const PHRASES = ${formatObjectArray(phrases)};
 `;
 }
 
-if (process.argv[1] && new URL(import.meta.url).pathname === process.argv[1]) {
+if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
   const config = JSON.parse(readFileSync(new URL("./roles.json", import.meta.url), "utf8"));
   const code = generateRolesCode(config);
   writeFileSync(new URL("../site/roles.mjs", import.meta.url), code, "utf8");

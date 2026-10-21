@@ -20,8 +20,17 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 /** Error that must turn the Actions run red instead of being retried or papered over. */
 export class FatalSourceError extends Error {}
 const fail = (source, why) => new FatalSourceError(`${source}: ${why}`);
+/** A source that returns invalid JSON is a schema change, not a parse bug in this file. */
+const json = (source, text) => {
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw fail(source, "invalid JSON (feed changed?)");
+  }
+};
 
 export async function fetchText(source, url, { fetchImpl = fetch, attempts = ATTEMPTS } = {}) {
+  if (attempts < 1) attempts = 1;
   for (let attempt = 1; attempt <= attempts; attempt++) {
     let res;
     try {
@@ -37,7 +46,17 @@ export async function fetchText(source, url, { fetchImpl = fetch, attempts = ATT
       await sleep(500 * 2 ** (attempt - 1));
       continue;
     }
-    if (res.ok) return res.text();
+    if (res.ok) {
+      try {
+        return await res.text();
+      } catch (err) {
+        if (attempt === attempts) {
+          throw fail(source, `body read failed after ${attempts} attempts: ${err?.message ?? err}`);
+        }
+        await sleep(500 * 2 ** (attempt - 1));
+        continue;
+      }
+    }
     // 401/403/404/410/451 -> blocked, removed, or ToS changed: never retry, never hide.
     if (!RETRYABLE_STATUS.has(res.status)) {
       throw fail(source, `HTTP ${res.status} (blocked, moved, or ToS changed; not retrying — check source manually)`);
@@ -105,26 +124,33 @@ const tags = (v) =>
 
 /** RSS 2.0 <item> blocks; a feed that renames its items is a schema change, not an empty day. */
 const rssItems = (source, text) => {
-  const items = text.match(/<item>[\s\S]*?<\/item>/g);
+  const items = text.match(/<item\b[^>]*>[\s\S]*?<\/item>/g);
   if (!items?.length) throw fail(source, "no <item> in RSS (feed changed?)");
   return items;
 };
 
-/** First occurrence of an RSS element in one <item>, decoded; "" when the feed omits it. */
-const field = (raw, name) =>
-  decode(String(raw.match(new RegExp(`<${name}[^>]*>([\\s\\S]*?)</${name}>`))?.[1] ?? "").trim());
+const fieldRegexCache = new Map();
+const field = (raw, name) => {
+  let re = fieldRegexCache.get(name);
+  if (!re) {
+    const tag = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    re = new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)</${tag}>`);
+    fieldRegexCache.set(name, re);
+  }
+  return decode(String(raw.match(re)?.[1] ?? "").trim());
+};
 
 export const SOURCES = {
   remoteok: {
     url: "https://remoteok.com/api",
     parse(text) {
-      const data = JSON.parse(text);
+      const data = json("remoteok", text);
       if (!Array.isArray(data)) throw fail("remoteok", "expected a JSON array (schema changed?)");
       // data[0] is the legal notice, not a job
       return data
         .filter((j) => j?.id && j.position)
         .map((j) => {
-          const location = j.location?.trim() || null;
+          const location = String(j.location ?? "").trim() || null;
           return {
             id: `remoteok-${j.id}`,
             title: j.position,
@@ -142,10 +168,10 @@ export const SOURCES = {
   remotive: {
     url: "https://remotive.com/api/remote-jobs",
     parse(text) {
-      const jobs = JSON.parse(text)?.jobs;
+      const jobs = json("remotive", text)?.jobs;
       if (!Array.isArray(jobs)) throw fail("remotive", "missing jobs[] (schema changed?)");
       return jobs.map((j) => {
-        const location = j.candidate_required_location?.trim() || null;
+        const location = String(j.candidate_required_location ?? "").trim() || null;
         return {
           id: `remotive-${j.id}`,
           title: j.title,
@@ -163,12 +189,12 @@ export const SOURCES = {
   arbeitnow: {
     url: "https://www.arbeitnow.com/api/job-board-api",
     parse(text) {
-      const jobs = JSON.parse(text)?.data;
+      const jobs = json("arbeitnow", text)?.data;
       if (!Array.isArray(jobs)) throw fail("arbeitnow", "missing data[] (schema changed?)");
       return jobs
         .filter((j) => j?.remote === true) // board mixes onsite jobs; keep remote only
         .map((j) => {
-          const location = j.location?.trim() || null;
+          const location = String(j.location ?? "").trim() || null;
           return {
             id: `arbeitnow-${j.slug}`,
             title: j.title,
@@ -186,7 +212,7 @@ export const SOURCES = {
   himalayas: {
     url: "https://himalayas.app/jobs/api?limit=100",
     parse(text) {
-      const jobs = JSON.parse(text)?.jobs;
+      const jobs = json("himalayas", text)?.jobs;
       if (!Array.isArray(jobs)) throw fail("himalayas", "missing jobs[] (schema changed?)");
       return jobs.map((j) => {
         const guid = String(j.guid ?? "");
@@ -240,10 +266,10 @@ export const SOURCES = {
   jobicy: {
     url: "https://jobicy.com/api/v2/remote-jobs?count=50",
     parse(text) {
-      const jobs = JSON.parse(text)?.jobs;
+      const jobs = json("jobicy", text)?.jobs;
       if (!Array.isArray(jobs)) throw fail("jobicy", "missing jobs[] (schema changed?)");
       return jobs.map((j) => {
-        const location = j.jobGeo?.trim() || null;
+        const location = String(j.jobGeo ?? "").trim() || null;
         return {
           id: `jobicy-${j.id}`,
           title: j.jobTitle,
@@ -262,11 +288,11 @@ export const SOURCES = {
   workingnomads: {
     url: "https://www.workingnomads.com/api/exposed_jobs/",
     parse(text) {
-      const jobs = JSON.parse(text);
+      const jobs = json("workingnomads", text);
       if (!Array.isArray(jobs)) throw fail("workingnomads", "expected a JSON array (schema changed?)");
       return jobs.map((j) => {
         const path = String(j.url ?? "");
-        const location = j.location?.trim() || null;
+        const location = String(j.location ?? "").trim() || null;
         return {
           id: `workingnomads-${path.split("/").filter(Boolean).pop() || j.title}`,
           title: j.title,
@@ -405,7 +431,9 @@ export async function collectJobs({
   const resolveLocation = createLocationResolver({ now: new Date(now) });
   const jobs = results.flat().map((job) => ({
     ...job,
-    timezoneOffsets: resolveLocation(job.location) ?? job.timezoneOffsets ?? null,
+    timezoneOffsets: (resolveLocation(job.location) ?? job.timezoneOffsets ?? null)?.filter(
+      (n) => typeof n === "number" && Number.isFinite(n),
+    ),
   }));
 
   return deduplicateAndSort(jobs);
@@ -413,6 +441,7 @@ export async function collectJobs({
 
 async function main(argv) {
   const at = argv.indexOf("--out");
+  if (at !== -1 && !argv[at + 1]) throw new Error("--out needs a path");
   const out = resolve(at === -1 ? "site/jobs.json" : argv[at + 1]);
   const jobs = await collectJobs({ log: (m) => console.error(m) });
   await mkdir(dirname(out), { recursive: true });

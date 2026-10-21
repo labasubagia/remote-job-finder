@@ -170,18 +170,24 @@
   <body>
     <header>
       <h1>Remote jobs</h1>
-      <input id="q" type="search" placeholder="Search title, company, tags, description" autocomplete="off">
+      <input
+        id="q"
+        type="search"
+        placeholder="Search title, company, tags, description"
+        autocomplete="off"
+        aria-label="Search jobs"
+      >
     </header>
     <div id="chips"></div>
     <header>
-      <select id="sort">
+      <select id="sort" aria-label="Sort order">
         <option value="best">Best match</option>
         <option value="new">Newest</option>
       </select>
-      <select id="src">
+      <select id="src" aria-label="Source filter">
         <option value="">All sources</option>
       </select>
-      <select id="geo">
+      <select id="geo" aria-label="Location filter">
         <option value="">Any location / timezone</option>
         <option value="my-tz">My timezone</option>
         <option value="americas">Americas (UTC-10 to UTC-3)</option>
@@ -196,17 +202,18 @@
         max="12"
         value="2"
         step="1"
-        title="Timezone tolerance in hours"
+        aria-label="Timezone tolerance in hours"
         style="width: 4rem; display: none;"
       >
     </header>
-    <p id="meta">Loading…</p>
+    <p id="meta" aria-live="polite">Loading…</p>
     <ul id="list"></ul>
     <script type="module">
     import { init } from "./app.mjs";
 
     init().catch((err) => {
-      document.getElementById("meta").textContent = `Could not load jobs (${err.message}).`;
+      const meta = document.getElementById("meta");
+      if (meta) meta.textContent = `Could not load jobs (${err.message}).`;
     });
     </script>
   </body>

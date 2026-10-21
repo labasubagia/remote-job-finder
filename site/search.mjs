@@ -5,7 +5,10 @@ export { CANON, GROUPS, PHRASES, ROLE_EXTRA_ALIASES, ROLE_IDS, ROLES };
 export const PROFILE_KEY = "rjf.profile.v1";
 
 export const esc = (s) =>
-  String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&", "<": "<", ">": ">", '"': "\u0026quot;" })[c]);
+  String(s ?? "").replace(
+    /[&<>"']/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
+  );
 
 const CANON_MAP = new Map(CANON);
 const canon = (w) => CANON_MAP.get(w) ?? w;
@@ -214,7 +217,11 @@ export function jobMatches(query, job) {
 // Recommended: profile score desc, then newest. No profile: pure recency (same as Newest).
 export function rankJobs(jobs, profileText) {
   const profileTerms = terms(profileText);
-  const newest = (a, b) => Date.parse(b.postedAt) - Date.parse(a.postedAt);
+  const newest = (a, b) => {
+    const at = Date.parse(a.postedAt ?? ""),
+      bt = Date.parse(b.postedAt ?? "");
+    return (Number.isNaN(bt) ? -Infinity : bt) - (Number.isNaN(at) ? -Infinity : at);
+  };
   const scored = jobs.map((job) => ({ job, score: scoreJob(profileTerms, job) }));
   scored.sort((a, b) => b.score - a.score || newest(a.job, b.job));
   return scored;

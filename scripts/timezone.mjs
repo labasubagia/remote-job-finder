@@ -63,7 +63,7 @@ const ALIASES = { us: "united states", usa: "united states", uk: "united kingdom
 // "U.S." -> "us" (the dot is part of the abbreviation, not a separator) and
 // "Zürich" -> "zurich" (the tz database spells it without the umlaut).
 const fold = (s) =>
-  s
+  String(s ?? "")
     .normalize("NFD")
     .replace(/\p{M}/gu, "")
     .replace(/\s*&\s*/g, " and ")
@@ -143,6 +143,10 @@ export function createLocationResolver({ now = new Date() } = {}) {
   // One alternation over every name, longest first so "san jose" wins over "jose".
   const alternation = [...index.keys()].sort((a, b) => b.length - a.length).join("|");
   const matcher = new RegExp(`\\b(${alternation})\\b`, "g");
+  const abbreviationMatchers = Object.entries(ABBREVIATIONS).map(([abbr, o]) => [
+    new RegExp(`\\b${abbr.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`),
+    o,
+  ]);
 
   return (location) => {
     const loc = fold(location ?? "");
@@ -153,9 +157,7 @@ export function createLocationResolver({ now = new Date() } = {}) {
       for (const zone of index.get(m[1]) ?? []) offsets.add(zoneOffset(zone, now));
     }
     for (const [re, band] of CONTINENTS) if (band && re.test(loc)) for (const o of band) offsets.add(o);
-    for (const [abbr, o] of Object.entries(ABBREVIATIONS)) {
-      if (new RegExp(`\\b${abbr}\\b`).test(loc)) offsets.add(o);
-    }
+    for (const [re, o] of abbreviationMatchers) if (re.test(loc)) offsets.add(o);
 
     if (!offsets.size) return null;
     return [...offsets].sort((a, b) => a - b);

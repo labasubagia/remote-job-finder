@@ -8,23 +8,24 @@ Zero runtime dependencies. The page ships `index.html` plus two ES modules (`app
 
 ## What visitors get
 
-- **10 role chips** — categorical role filters, e.g. `Software engineer`, `Data scientist`, `HR / recruiter`. Selected chips narrow the list (SQL `IN`, matching classified role or title without leaking noisy tags). Selected roles are remembered in `localStorage` under `rjf.profile.v1` (wrapped in try/catch, so private mode still works, it just forgets).
-- **Search box** — `title`, `tags`, `company` and `excerpt` are searched, typos included (`enigneer`, `desgin`, `softw` all hit), and it combines with the active role filter via `AND`. While a query is active, results are ordered by relevance instead of recency, unless `Newest` is selected.
-- **Sort** — `Best match` (relevance or role bonus within the filtered set) or `Newest` (recency within the same set); a source filter narrows to one feed.
-- **Geography filter** — "My timezone" (with tolerance slider, default ±2h), regional dropdowns (Americas/EMEA/APAC), and "Worldwide".
+- **Role chips** — categorical filters (e.g., Software engineer, Data scientist, HR / recruiter). Selected chips narrow the list (SQL `IN`, matching classified role or title without leaking noisy tags). Selections persist in `localStorage` (`rjf.profile.v1`), wrapped in try/catch so private mode still works.
+- **Search box** — searches `title`, `tags`, `company`, and `excerpt`; typo-tolerant (e.g., "enigneer", "desgin"). Combines with active role filter via `AND`. While a query is active, results order by relevance unless "Newest" is selected.
+- **Sort** — "Best match" (relevance or role bonus) or "Newest" (recency). A source filter narrows to one feed.
+- **Geography filter** — "My timezone" (with tolerance slider), regional dropdowns (Americas / EMEA / APAC), and "Worldwide".
 - **Match highlights** — each job shows "match: term1 · term2" badges explaining why it surfaced.
-- **Feed source badge** — each job displays its source (remoteok, remotive, etc.).
-- **Relative timestamps** — e.g. "3 days ago" using `Intl.RelativeTimeFormat`.
+- **Feed source badge** — each job displays its source.
+- **Relative timestamps** — e.g., "3 days ago" via `Intl.RelativeTimeFormat`.
+
 ## Data
 
-`scripts/fetch-jobs.mjs` aggregates five public feeds: remoteok, remotive, arbeitnow, himalayas, wwr.
+`scripts/fetch-jobs.mjs` aggregates multiple public feeds.
 
-- 30-day freshness window, excerpt truncated to 200 chars, at most 8 tags per job, deduplicated by id, sorted newest first.
-- 3 attempts with a 20 s timeout per request; retryable HTTP statuses (408, 425, 429, 5xx) are retried, HTML entities (named, decimal and hex) and CDATA are decoded.
-- Timestamps are accepted as epoch seconds, epoch milliseconds, ISO or RFC-822; anything unparseable or out of range becomes `null` and the row is dropped. Excerpts are cut on code-point boundaries. Jobs whose `url` is not `http(s)` are dropped, never published.
-- A source returning **zero** fresh jobs throws `FatalSourceError` and turns the Actions run red — a stale feed fails loudly instead of publishing a silently shrinking board.
-- `site/jobs.json` is generated, gitignored, and only ever deployed as a Pages artifact.
-- **Roles** are classified after fetching, in the Actions runner only: `scripts/classify-roles.py` runs a CPU Laya checkpoint behind the System One contract and keeps an answer only when confidence is at least 0.7 and the answer is not `other`. The role is written as `role` + `roleConfidence`; a job without a confident answer stays role-less and ranks by text. Results are reused by `id` + title + company from the previous run, so the daily job classifies only new postings.
+- Freshness window, excerpt length limit, tag cap; deduplicated by id, sorted newest first.
+- Retries with timeout; retryable HTTP statuses are retried; HTML entities (named, decimal, hex) and CDATA decoded.
+- Timestamps accepted as epoch seconds, epoch milliseconds, ISO, or RFC-822; unparseable/out-of-range becomes `null` and the row is dropped. Excerpts cut on code-point boundaries. Non-http(s) URLs are dropped, never published.
+- A source returning zero fresh jobs fails the run loudly (`FatalSourceError`) instead of publishing a silently shrinking board.
+- `site/jobs.json` is generated, gitignored, and only deployed as a Pages artifact.
+- **Roles** are classified after fetching, in the Actions runner only. A CPU Laya checkpoint runs behind the System One contract; answers below the confidence threshold or labelled `other` are discarded. The role is written as `role` + `roleConfidence`; jobs without a confident answer stay role-less and rank by text. Results are reused by `id` + title + company from the previous run, so the daily job classifies only new postings.
 
 ## Local development
 
@@ -43,48 +44,49 @@ python3 -m venv .venv && .venv/bin/pip install -r scripts/requirements-roles.txt
 .venv/bin/python scripts/classify-roles.py && node scripts/apply-roles.mjs
 ```
 
-Node >= 22 (CI runs 24). `npm run fetch` hits the real feeds; most of them send no CORS headers, which is exactly why fetching runs on a runner and never in the browser.
+Node >= 22 (CI runs 24). `npm run fetch` hits the real feeds; most send no CORS headers, which is why fetching runs on a runner and never in the browser.
 
-## Role taxonomy
-
-- **Source of truth**: `scripts/roles.json` – holds the canonical role IDs, labels, and alias lists.
-- **Generated module**: `site/roles.mjs` – produced by `npm run gen:roles` (script `scripts/generate-roles.mjs`). It exports `ROLES`, `ROLE_IDS`, and `ROLE_EXTRA_ALIASES` for the browser.
-- The UI (`site/search.mjs`) and test suites now import these constants from the generated module, eliminating duplicate hard‑coded arrays.
-- Any change to roles only requires editing `scripts/roles.json`; running the tests (or `npm run gen:roles`) updates the generated file automatically.
-
-
+## Architecture
 
 | Path | Role |
 | --- | --- |
-| `scripts/fetch-jobs.mjs` | Aggregator: source definitions, retries, normalisation to `{id,title,company,url,source,tags,postedAt,excerpt,location,timezoneOffsets}` |
-| `scripts/timezone.mjs` | Resolves a free-text location to UTC offsets from Node's own ICU data (`Intl`): IANA city names, country names, US states, zone abbreviations. Build-time only, no data files |
-| `scripts/roles.json` | Role taxonomy, model revision and confidence threshold; shared by the classifier, the merge step and the tests |
+| `scripts/fetch-jobs.mjs` | Aggregator: source definitions, retries, normalisation to a common job shape |
+| `scripts/timezone.mjs` | Resolves free-text `location` to UTC offsets from Node's ICU (`Intl`): IANA cities, countries, US states, zone abbreviations. Build-time only, no data files |
+| `scripts/roles.json` | Role taxonomy, model revision, confidence threshold — shared by classifier, merge step, tests |
 | `scripts/roles.mjs` | Pure gating/merge logic: `samePosting`, `pickRole`, `resolveRole`, `applyRoles` |
 | `scripts/classify-roles.py` | Build-time only: predicts roles for postings missing from the previous run |
 | `scripts/apply-roles.mjs` | Merges cached and fresh predictions into `jobs.json`, then saves the merged list for the cache |
-| `site/index.html` | The page: styles and markup; loads the app module through a single `<script type="module">` import |
-| `site/app.mjs` | DOM side: `init()` plus the state, rendering and event wiring |
-| `site/search.mjs` | Pure logic, no DOM: `terms`, `scoreJob`, `profileMatcher`, `roleMatcher`, `matchedTerms`, `rankJobs`, `searchTokens`, `searchScore`, `jobMatches`, `ROLES`, `ROLE_IDS`, `ROLE_BY_LABEL`, `labelKey`, `PROFILE_KEY`, `esc`; a matching classified role adds a fixed bonus |
-| `test/*.test.mjs` | `node:test` suites (68 tests) covering the scripts, both modules, and the filter UI through a DOM stub |
-| `biome.json` | Formatter + linter config (line width 120, organised imports) |
+| `scripts/generate-roles.mjs` | Generates `site/roles.mjs` from `scripts/roles.json` |
+| `site/index.html` | The page: styles and markup; loads the app module via `<script type="module">` |
+| `site/app.mjs` | DOM side: `init()`, state, rendering, event wiring |
+| `site/search.mjs` | Pure logic, no DOM: term extraction, scoring, profile/role matching, ranking, search, `esc` |
+| `test/*.test.mjs` | `node:test` suites covering the scripts, both modules, and the filter UI via a DOM stub |
+| `biome.json` | Formatter + linter config |
 
-Ranking and search scoring:
+## Role taxonomy
 
-- Profile terms: aliases fold into a canonical form (`front end` -> `frontend`, `people operations` -> `hr`, `machine learning` -> `ml`, `sre` -> `devops`), stopwords are dropped, then matches are weighted per field: title 3, tags 2, excerpt 1. Filtering is stricter than scoring: comma-separated entries combine with AND, role chips are one `IN` condition matched by classified role or title, and scoring still sums every hit.
-- Search: every query token has to hit some word; fields are weighted title 3, tags 2, company 1, excerpt 1, and the per-token best weights are summed into a relevance score. A word matches on exact, prefix, or one edit away (insert/delete/substitute/transpose) for tokens of 5+ characters.
-- Deliberately not done: abbreviation expansion in the search box (`sre` finds nothing there, while the profile box folds it), negation ("no on-call"), seniority filters, multi-language profiles.
-- Classified roles: a job whose `role` shares a term with the profile gets a fixed 1.5 bonus before the profile-size normalisation. Jobs without a confident role are unaffected.
+- **Source of truth**: `scripts/roles.json` — canonical role IDs, labels, and alias lists.
+- **Generated module**: `site/roles.mjs` — produced by `npm run gen:roles` (`scripts/generate-roles.mjs`). Exports `ROLES`, `ROLE_IDS`, `ROLE_EXTRA_ALIASES` for the browser.
+- Any change to roles only requires editing `scripts/roles.json`; running the tests (or `npm run gen:roles`) updates the generated file automatically.
+
+## Ranking and search scoring
+
+- **Profile terms**: aliases fold into a canonical form; stopwords dropped; matches weighted per field (title > tags > excerpt). Filtering is stricter than scoring: comma-separated entries combine with `AND`, role chips are one `IN` condition matched by classified role or title.
+- **Search**: every query token must hit some word; fields weighted (title > tags > company > excerpt); per-token best weights summed into a relevance score. A word matches on exact, prefix, or one edit distance for tokens of sufficient length.
+- **Classified roles**: a job whose `role` shares a term with the profile gets a fixed bonus before profile-size normalisation. Jobs without a confident role are unaffected.
+- **Deliberately not done**: abbreviation expansion in the search box (profile box does it), negation ("no on-call"), seniority filters, multi-language profiles.
 
 ## Geography filter
 
-- `scripts/timezone.mjs` turns each job's free-text `location` into UTC offsets at build time, reading ICU's tz database through `Intl` instead of shipping a city list: `Copenhagen` -> `[2]`, `Vancouver` -> `[-7]`, `United States` -> `[-10..-5]`, `Kansas` -> `[-6,-5]`, `NYC or Remote (EST or CST)` -> `[-6,-5]`.
+- `scripts/timezone.mjs` turns each job's free-text `location` into UTC offsets at build time via Node's ICU (`Intl`) instead of shipping a city list.
 - The browser only compares numbers. "My timezone" keeps a job when any of its offsets is within the tolerance of the reader's clock. Jobs with no resolvable offsets are **kept** (safe default).
-- The regional dropdowns (Americas -10..-3, EMEA -1..+4, APAC +5..+12) **hide** jobs with no resolvable offsets. They intentionally differ from a tolerance window: a region is a place, not a distance.
+- Regional dropdowns (Americas / EMEA / APAC) **hide** jobs with no resolvable offsets. They intentionally differ from a tolerance window: a region is a place, not a distance.
 - "Worldwide" matches `worldwide|anywhere|global` in the location text (word boundaries).
-- A label that names no place (`Remote`, `Worldwide`, a company name) or a town ICU does not know stays visible in "My timezone"; roughly 2% of the feed. Guessing those away would hide takeable jobs, which is worse than showing a doubtful one.
+- Labels that name no place (`Remote`, `Worldwide`, a company name) or unknown towns stay visible in "My timezone". Guessing those away would hide takeable jobs, which is worse than showing a doubtful one.
+
 ## Automation
 
-- `.github/workflows/jobs.yml` — daily at `17 6 * * *`, on `workflow_dispatch`, and on every push to `main`: tests, fetch, role classification, deploy to Pages. The classifier's wheels (uv cache), weights (Hugging Face cache) and previous results are cached; a classifier failure degrades to keyword ranking instead of blocking the deploy.
+- `.github/workflows/jobs.yml` — scheduled daily, on `workflow_dispatch`, and on every push to `main`: tests, fetch, role classification, deploy to Pages. Classifier wheels (uv cache), weights (HF cache), and previous results are cached; a classifier failure degrades to keyword ranking instead of blocking the deploy.
 - `.github/workflows/ci.yml` — on every pull request: `npm ci`, `npm run fmt:check`, `npm run lint`, `npm test`.
-- `main` is protected, so changes land through pull requests only.
-- Husky hooks: `pre-commit` runs `biome check --staged` (fast, check-only: it never rewrites your index), `pre-push` runs `npm run check`.
+- `main` is protected; changes land through pull requests only.
+- Husky hooks: `pre-commit` runs `biome check --staged` (fast, check-only, never rewrites index); `pre-push` runs `npm run check`.
