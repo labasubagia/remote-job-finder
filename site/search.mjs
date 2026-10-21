@@ -65,7 +65,7 @@ const ROLE_BONUS = 1.5;
 
 const FIELDS = [
   [3, (j) => j.title],
-  [2, (j) => (j.tags || []).join(" ")],
+  [2, (j) => j.tags],
   [1, (j) => j.excerpt],
 ];
 
@@ -108,11 +108,11 @@ export function roleMatcher(roles) {
     }
   }
   if (!roleIds.size) return () => true;
+  const wanted = [...roleIds].map((id) => [...ROLE_LABEL_TERMS.get(id)]);
   return (job) => {
-    const titleTerms = terms(job.title);
-    const byRole = Boolean(job.role) && roleIds.has(job.role);
-    const byTitle = [...roleIds].some((id) => [...ROLE_LABEL_TERMS.get(id)].every((t) => titleTerms.has(t)));
-    return Boolean(byRole || byTitle);
+    if (job.role && roleIds.has(job.role)) return true;
+    const titleTerms = fieldSets(job)[0][1];
+    return wanted.some((roleTerms) => roleTerms.every((t) => titleTerms.has(t)));
   };
 }
 
@@ -172,7 +172,7 @@ const tokenHit = (q, word) => word === q || word.startsWith(q) || (q.length >= M
 
 const SEARCH_FIELDS = [
   [3, (j) => j.title],
-  [2, (j) => (j.tags || []).join(" ")],
+  [2, (j) => j.tags],
   [1, (j) => j.company],
   [1, (j) => j.excerpt],
 ];
@@ -214,13 +214,16 @@ export function jobMatches(query, job) {
   return !wanted.length || scoreTokens(wanted, job) > 0;
 }
 
-// Recommended: profile score desc, then newest. No profile: pure recency (same as Newest).
 export function rankJobs(jobs, profileText) {
   const profileTerms = terms(profileText);
+  const postedTime = (job) => {
+    const t = Date.parse(job.postedAt ?? "");
+    return Number.isNaN(t) ? -Infinity : t;
+  };
   const newest = (a, b) => {
-    const at = Date.parse(a.postedAt ?? ""),
-      bt = Date.parse(b.postedAt ?? "");
-    return (Number.isNaN(bt) ? -Infinity : bt) - (Number.isNaN(at) ? -Infinity : at);
+    const at = postedTime(a),
+      bt = postedTime(b);
+    return at === bt ? 0 : bt - at;
   };
   const scored = jobs.map((job) => ({ job, score: scoreJob(profileTerms, job) }));
   scored.sort((a, b) => b.score - a.score || newest(a.job, b.job));

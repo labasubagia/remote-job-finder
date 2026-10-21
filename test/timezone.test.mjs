@@ -76,6 +76,14 @@ test("offsets follow daylight saving time", () => {
   assert.equal(zoneOffset("Europe/Berlin", new Date("2026-01-15T12:00:00Z")), 1);
 });
 
+test("the offset cache does not leak across a DST transition on the same day", () => {
+  // US DST starts 2024-03-10 at 07:00 UTC. Before that, New York is -5; after, -4.
+  const before = zoneOffset("America/New_York", new Date("2024-03-10T06:00:00Z"));
+  const after = zoneOffset("America/New_York", new Date("2024-03-10T18:00:00Z"));
+  assert.equal(before, -5, "01:00 local is still EST");
+  assert.equal(after, -4, "14:00 local is EDT");
+});
+
 test("the resolver is fast enough to run on every job", () => {
   const started = performance.now();
   for (let i = 0; i < 300; i++) resolver("Copenhagen, Denmark");

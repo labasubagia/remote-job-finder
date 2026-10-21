@@ -170,20 +170,22 @@ export const SOURCES = {
     parse(text) {
       const jobs = json("remotive", text)?.jobs;
       if (!Array.isArray(jobs)) throw fail("remotive", "missing jobs[] (schema changed?)");
-      return jobs.map((j) => {
-        const location = String(j.candidate_required_location ?? "").trim() || null;
-        return {
-          id: `remotive-${j.id}`,
-          title: j.title,
-          company: j.company_name ?? "",
-          url: j.url,
-          source: "remotive",
-          tags: tags(j.tags),
-          postedAt: iso(j.publication_date),
-          excerpt: excerpt(j.description),
-          location,
-        };
-      });
+      return jobs
+        .filter((j) => j?.id)
+        .map((j) => {
+          const location = String(j.candidate_required_location ?? "").trim() || null;
+          return {
+            id: `remotive-${j.id}`,
+            title: j.title,
+            company: j.company_name ?? "",
+            url: j.url,
+            source: "remotive",
+            tags: tags(j.tags),
+            postedAt: iso(j.publication_date),
+            excerpt: excerpt(j.description),
+            location,
+          };
+        });
     },
   },
   arbeitnow: {
@@ -192,7 +194,7 @@ export const SOURCES = {
       const jobs = json("arbeitnow", text)?.data;
       if (!Array.isArray(jobs)) throw fail("arbeitnow", "missing data[] (schema changed?)");
       return jobs
-        .filter((j) => j?.remote === true) // board mixes onsite jobs; keep remote only
+        .filter((j) => j?.remote === true && j.slug) // board mixes onsite jobs; keep remote only
         .map((j) => {
           const location = String(j.location ?? "").trim() || null;
           return {
@@ -268,21 +270,23 @@ export const SOURCES = {
     parse(text) {
       const jobs = json("jobicy", text)?.jobs;
       if (!Array.isArray(jobs)) throw fail("jobicy", "missing jobs[] (schema changed?)");
-      return jobs.map((j) => {
-        const location = String(j.jobGeo ?? "").trim() || null;
-        return {
-          id: `jobicy-${j.id}`,
-          title: j.jobTitle,
-          company: j.companyName ?? "",
-          url: j.url,
-          source: "jobicy",
-          // jobIndustry already reads like the role chips: "Software Engineering", "Data Science & Analytics"
-          tags: tags(j.jobIndustry),
-          postedAt: iso(j.pubDate),
-          excerpt: excerpt(j.jobExcerpt || j.jobDescription),
-          location,
-        };
-      });
+      return jobs
+        .filter((j) => j?.id)
+        .map((j) => {
+          const location = String(j.jobGeo ?? "").trim() || null;
+          return {
+            id: `jobicy-${j.id}`,
+            title: j.jobTitle,
+            company: j.companyName ?? "",
+            url: j.url,
+            source: "jobicy",
+            // jobIndustry already reads like the role chips: "Software Engineering", "Data Science & Analytics"
+            tags: tags(j.jobIndustry),
+            postedAt: iso(j.pubDate),
+            excerpt: excerpt(j.jobExcerpt || j.jobDescription),
+            location,
+          };
+        });
     },
   },
   workingnomads: {
@@ -290,67 +294,81 @@ export const SOURCES = {
     parse(text) {
       const jobs = json("workingnomads", text);
       if (!Array.isArray(jobs)) throw fail("workingnomads", "expected a JSON array (schema changed?)");
-      return jobs.map((j) => {
-        const path = String(j.url ?? "");
-        const location = String(j.location ?? "").trim() || null;
-        return {
-          id: `workingnomads-${path.split("/").filter(Boolean).pop() || j.title}`,
-          title: j.title,
-          company: j.company_name ?? "",
-          url: j.url,
-          source: "workingnomads",
-          // tags arrive as one comma-separated string; category_name is the closest thing to a role
-          tags: tags([j.category_name, ...String(j.tags ?? "").split(",")]),
-          postedAt: iso(j.pub_date),
-          excerpt: excerpt(j.description),
-          location,
-        };
-      });
+      return jobs
+        .filter(
+          (j) =>
+            String(j?.url ?? "")
+              .split("/")
+              .filter(Boolean)
+              .pop() || j?.title,
+        )
+        .map((j) => {
+          const path = String(j.url ?? "");
+          const location = String(j.location ?? "").trim() || null;
+          return {
+            id: `workingnomads-${path.split("/").filter(Boolean).pop() || j.title}`,
+            title: j.title,
+            company: j.company_name ?? "",
+            url: j.url,
+            source: "workingnomads",
+            // tags arrive as one comma-separated string; category_name is the closest thing to a role
+            tags: tags([j.category_name, ...String(j.tags ?? "").split(",")]),
+            postedAt: iso(j.pub_date),
+            excerpt: excerpt(j.description),
+            location,
+          };
+        });
     },
   },
   nodesk: {
     url: "https://nodesk.co/remote-jobs/index.xml",
     parse(text) {
-      return rssItems("nodesk", text).map((raw) => {
+      return rssItems("nodesk", text).flatMap((raw) => {
         // titles are "Role at Company"
         const full = field(raw, "title");
         const at = full.lastIndexOf(" at ");
         const link = field(raw, "link");
-        if (!link) throw fail("nodesk", "item without link");
-        return {
-          id: `nodesk-${link.split("/").filter(Boolean).pop()}`,
-          title: at > 0 ? full.slice(0, at) : full,
-          company: at > 0 ? full.slice(at + 4) : "",
-          url: link,
-          source: "nodesk",
-          tags: [],
-          postedAt: iso(field(raw, "pubDate")),
-          excerpt: excerpt(field(raw, "description")),
-        };
+        const slug = link.split("/").filter(Boolean).pop();
+        if (!slug) return [];
+        return [
+          {
+            id: `nodesk-${slug}`,
+            title: at > 0 ? full.slice(0, at) : full,
+            company: at > 0 ? full.slice(at + 4) : "",
+            url: link,
+            source: "nodesk",
+            tags: [],
+            postedAt: iso(field(raw, "pubDate")),
+            excerpt: excerpt(field(raw, "description")),
+          },
+        ];
       });
     },
   },
   jobspresso: {
     url: "https://jobspresso.co/feed/?post_type=job_listing",
     parse(text) {
-      return rssItems("jobspresso", text).map((raw) => {
+      return rssItems("jobspresso", text).flatMap((raw) => {
         const link = field(raw, "link");
-        if (!link) throw fail("jobspresso", "item without link");
+        const slug = link.split("/").filter(Boolean).pop();
+        if (!slug) return [];
         // dc:creator carries "Company<br>⚲ Location"; the company is everything before the break
         const creatorParts = field(raw, "dc:creator").split(/<br\s*\/?>/i);
         const company = stripHtml(creatorParts[0]);
         const location = creatorParts[1]?.replace(/^⚲\s*/, "").trim() || null;
-        return {
-          id: `jobspresso-${link.split("/").filter(Boolean).pop()}`,
-          title: field(raw, "title"),
-          company,
-          url: link,
-          source: "jobspresso",
-          tags: [],
-          postedAt: iso(field(raw, "pubDate")),
-          excerpt: excerpt(field(raw, "description")),
-          location,
-        };
+        return [
+          {
+            id: `jobspresso-${slug}`,
+            title: field(raw, "title"),
+            company,
+            url: link,
+            source: "jobspresso",
+            tags: [],
+            postedAt: iso(field(raw, "pubDate")),
+            excerpt: excerpt(field(raw, "description")),
+            location,
+          },
+        ];
       });
     },
   },
@@ -365,6 +383,7 @@ export const SOURCES = {
         const [, company, title, place] = m;
         if (!/^remote\b/i.test(place)) return [];
         const slug = link.split("?")[0].split("/").filter(Boolean).pop();
+        if (!slug) return [];
         return [
           {
             id: `dribbble-${slug}`,
