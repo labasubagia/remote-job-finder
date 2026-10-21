@@ -82,9 +82,9 @@ function loadRoles() {
     // private mode or storage disabled
   }
 }
-
 function syncChips(chips) {
   for (const b of chips?.children ?? []) {
+    if (b.tagName !== "BUTTON") continue;
     b.setAttribute("aria-pressed", String(selectedRoles.has(b.textContent)));
   }
 }
@@ -171,9 +171,12 @@ function render({ q, src, geo, tzTolerance, sort, chips, list, meta }) {
 }
 
 function initChips(chips) {
-  chips.innerHTML = ROLES.map((r) => `<button type="button" class="chip" aria-pressed="false">${esc(r)}</button>`).join(
+  const buttons = ROLES.map((r) => `<button type="button" class="chip" aria-pressed="false">${esc(r)}</button>`).join(
     "",
   );
+  const legend = chips.querySelector?.("legend");
+  chips.innerHTML = buttons;
+  if (legend) chips.prepend(legend);
 }
 
 function debounce(fn, ms) {

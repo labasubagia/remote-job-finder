@@ -13,6 +13,14 @@
     * {
       box-sizing: border-box;
     }
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
     body {
       margin: 0 auto;
       max-width: 64rem;
@@ -178,7 +186,7 @@
         aria-label="Search jobs"
       >
     </header>
-    <div id="chips"></div>
+    <fieldset id="chips" aria-label="Role filters"><legend class="visually-hidden">Role filters</legend></fieldset>
     <header>
       <select id="sort" aria-label="Sort order">
         <option value="best">Best match</option>
