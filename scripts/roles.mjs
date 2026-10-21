@@ -12,10 +12,11 @@ export function samePosting(a, b) {
 /** A model answer only becomes a role when it cleared the threshold and is not `other`. */
 export function pickRole(prediction, threshold = ROLE_CONFIG.threshold) {
   if (!prediction || prediction.abstained) return null;
-  if (prediction.role === "other") return null;
+  const role = prediction.role;
+  if (typeof role !== "string" || role === "other") return null;
   const confidence = Number(prediction.confidence);
   if (!Number.isFinite(confidence) || confidence < threshold) return null;
-  return { role: prediction.role, roleConfidence: confidence };
+  return { role, roleConfidence: confidence };
 }
 
 /**
