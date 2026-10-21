@@ -65,7 +65,7 @@ Node >= 22 (CI runs 24). `npm run fetch` hits the real feeds; most of them send 
 | `site/index.html` | The page: styles and markup; loads the app module through a single `<script type="module">` import |
 | `site/app.mjs` | DOM side: `init()` plus the state, rendering and event wiring |
 | `site/search.mjs` | Pure logic, no DOM: `terms`, `scoreJob`, `profileMatcher`, `roleMatcher`, `matchedTerms`, `rankJobs`, `searchTokens`, `searchScore`, `jobMatches`, `ROLES`, `ROLE_IDS`, `ROLE_BY_LABEL`, `labelKey`, `PROFILE_KEY`, `esc`; a matching classified role adds a fixed bonus |
-| `test/*.test.mjs` | `node:test` suites (81 tests) covering the scripts, both modules, and the filter UI through a DOM stub |
+| `test/*.test.mjs` | `node:test` suites covering the scripts, both modules, and the filter UI through a DOM stub |
 | `biome.json` | Formatter + linter config (line width 120, organised imports) |
 
 Ranking and search scoring:
